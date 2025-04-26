@@ -7,8 +7,6 @@ using namespace std;
 
 //int main(int argc, char** argv)
 
-
-
 int main()
 {
 	//string videoSource = "Timeline 3 480p.mp4";
