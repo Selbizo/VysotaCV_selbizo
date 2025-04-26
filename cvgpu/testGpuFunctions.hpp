@@ -64,8 +64,8 @@ struct TransformParam
 		T.at<double>(1, 1) = cos(da);
 		//T.at<double>(0, 2) = dx + (a - c * cos(da + atan(b / a)))/2;
 		//T.at<double>(1, 2) = dy + (b - c * sin(da + atan(b / a)))/2;
-		T.at<double>(0, 2) = dx - a* crop*(1 - cos(atan(b / a) + da))/2;
-		T.at<double>(1, 2) = dy - b* crop*(sin(atan(b / a) + da))/2;
+		T.at<double>(0, 2) = dx - a * crop * (1 - cos(atan(b / a) + da)) / 2;
+		T.at<double>(1, 2) = dy - b * crop * (sin(atan(b / a) + da)) / 2;
 
 	}
 
@@ -252,34 +252,34 @@ void GcalcPSF(cuda::GpuMat& outputImg, Size filterSize, Size psfSize, double len
 	int scale = 8;
 	cuda::GpuMat h(filterSize, CV_32F, Scalar(0));
 	Mat hCpu(psfSize, CV_32F, Scalar(0));
-	Mat hCpuBig(Size(psfSize.width*scale, psfSize.height*scale), CV_32F, Scalar(0));
+	Mat hCpuBig(Size(psfSize.width * scale, psfSize.height * scale), CV_32F, Scalar(0));
 	// Центр эллипса
-	Point center(psfSize.width *scale/ 2, psfSize.height* scale/ 2);
+	Point center(psfSize.width * scale / 2, psfSize.height * scale / 2);
 
 	// Радиусы эллипса
-	Size axes(scale, cvRound(double(len*scale +scale) / 2.0f));
-	Size axes2(scale, cvRound(double(len*scale +scale) / 4.0f));
-	Size axes3(scale, cvRound(double(len*scale +scale) / 6.0f));
+	Size axes(scale, cvRound(double(len * scale + scale) / 2.0f));
+	Size axes2(scale, cvRound(double(len * scale + scale) / 4.0f));
+	Size axes3(scale, cvRound(double(len * scale + scale) / 6.0f));
 	// Углы поворота эллипса
 	double angle = 90.0 - theta;
 
 	// Рисуем эллипс на GpuMat
 
 	ellipse(hCpuBig, center, axes, angle, 0, 360, Scalar(0.2), FILLED);
-	
+
 	ellipse(hCpuBig, center, axes2, angle, 0, 360, Scalar(0.4), FILLED);
 	ellipse(hCpuBig, center, axes2, angle, 0, 360, Scalar(0.9), FILLED);
 	resize(hCpuBig, hCpu, psfSize, INTER_LINEAR);
-	if(hCpu.cols > h.cols/2)
-		resize(hCpu, hCpu, Size(h.cols/2-1, hCpu.rows), INTER_LINEAR);
-	if (hCpu.rows > h.rows/2)
-		resize(hCpu, hCpu, Size(hCpu.cols, h.rows/2-1), INTER_LINEAR);
+	if (hCpu.cols > h.cols / 2)
+		resize(hCpu, hCpu, Size(h.cols / 2 - 1, hCpu.rows), INTER_LINEAR);
+	if (hCpu.rows > h.rows / 2)
+		resize(hCpu, hCpu, Size(hCpu.cols, h.rows / 2 - 1), INTER_LINEAR);
 	// 
 		// Копируем часть исходного кадра в большой кадр
 	imshow("PSF Cpu", hCpu);
 	//hCpu(Rect(0, 0, psfSize.width, psfSize.height)).copyTo(h(Rect((filterSize.width - psfSize.width) / 2, (filterSize.height - psfSize.height) / 2, psfSize.width, psfSize.height)));
 	hCpu(Rect(0, 0, hCpu.cols, hCpu.rows)).copyTo(h(Rect((filterSize.width - hCpu.cols) / 2, (filterSize.height - hCpu.rows) / 2, hCpu.cols, hCpu.rows)));
-	
+
 	//h.upload(hCpu);
 
 
@@ -313,7 +313,7 @@ void GcalcPSFCircle(cuda::GpuMat& outputImg, Size filterSize, double len, double
 	//ellipse(hCpu, center, axes2, angle, 0, 360, Scalar(255), FILLED);
 	blur(hCpu, hCpu, Size(5, 5));
 	h.upload(hCpu);
-	
+
 	// Суммируем все элементы GpuMat
 	Scalar summa = cuda::sum(h);
 
@@ -580,7 +580,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 			//transforms[1].dx -= 0.95 * transforms[0].dx;
 			//transforms[1].dy -= 0.95 * transforms[0].dy;
 			//transforms[1].da -= 0.95 * transforms[0].da;
-			
+
 			transforms[1].da *= 0.98;
 			kSwitch *= 0.95;
 		}
@@ -626,31 +626,138 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (kSwitch < 1.0)
 		tau_stab *= (4.0 + kSwitch) / 5.0;
 
-	
-		transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx);
-		transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
-		transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
 
-		//transforms[2].dx = 
-		//KF.correct(transforms[1].dx);
+	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx);
+	transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
+	transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
 
-		// Применение фильтра Калмана
-		//cv::Mat prediction = KF.predict();
+	//transforms[2].dx = 
+	//KF.correct(transforms[1].dx);
+
+	// Применение фильтра Калмана
+	//cv::Mat prediction = KF.predict();
 
 
-		if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
-		{
-			transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
-			transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
-			transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
-		}
-		//transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
-		//if (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0)
-		//transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
-		//if (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0)
-		//transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+	if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
+	{
+		transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
+		transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
+		transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+	}
+	//transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
+	//if (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0)
+	//transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
+	//if (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0)
+	//transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
 }
 
+void iirAdaptiveHighPass(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch)//, cv::KalmanFilter& KF)
+{
+	if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
+	{
+		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx);
+		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy);
+		transforms[1].da = kSwitch * (transforms[1].da * (1.7 * tau_stab - 1.0) / (1.7 * tau_stab) + kSwitch * transforms[0].da);
+	}
+
+	if (transforms[1].da > 1.4)
+	{
+		transforms[1].da = 1.4;
+	}
+	if (transforms[1].da < -1.4)
+	{
+		transforms[1].da = -1.4;
+	}
+	if (tau_stab < 10.0) {
+		tau_stab *= 1.1;
+	}
+	if (tau_stab < 20.0 && !(abs(transforms[1].dx) > 60.0 || abs(transforms[1].dy) > 60.0)) {
+		tau_stab *= 1.1;
+	}
+	if (tau_stab < 30.0 && !(abs(transforms[1].dx) > 30.0 || abs(transforms[1].dy) > 30.0)) {
+		tau_stab *= 1.1;
+		if (tau_stab > 30.0)
+			tau_stab = 30.0;
+	}
+	if (roi.x + (int)transforms[1].dx < 0)
+	{
+		transforms[1].dx = double(1 - roi.x);
+		if (tau_stab > 50) {
+			tau_stab *= 0.9;
+
+			//transforms[1].dx -= 0.95 * transforms[0].dx;
+			//transforms[1].dy -= 0.95 * transforms[0].dy;
+			//transforms[1].da -= 0.95 * transforms[0].da;
+
+			transforms[1].da *= 0.98;
+			kSwitch *= 0.95;
+		}
+
+	}
+	else if (roi.x + roi.width + (int)transforms[1].dx >= cols)
+	{
+		transforms[1].dx = (double)(cols - roi.x - roi.width);
+		if (tau_stab > 50) {
+			tau_stab *= 0.9;
+			//transforms[1].dx -= 0.95 * transforms[0].dx;
+			//transforms[1].dy -= 0.95 * transforms[0].dy;
+			//transforms[1].da -= 0.95 * transforms[0].da;
+			transforms[1].da *= 0.98;
+			kSwitch *= 0.95;
+		}
+	}
+
+	if (roi.y + (int)transforms[1].dy < 0)
+	{
+		transforms[1].dy = (double)(1 - roi.y);
+		if (tau_stab > 10) {
+			tau_stab *= 0.9;
+			//transforms[1].dx -= 0.95 * transforms[0].dx;
+			//transforms[1].dy -= 0.95 * transforms[0].dy;
+			//transforms[1].da -= 0.95 * transforms[0].da;
+			transforms[1].da *= 0.98;
+			kSwitch *= 0.95;
+		}
+	}
+	else if (roi.y + roi.height + (int)transforms[1].dy >= rows)
+	{
+		transforms[1].dy = (double)(rows - roi.y - roi.height);
+		if (tau_stab > 50) {
+			tau_stab *= 0.9;
+			//transforms[1].dx -= 0.95 * transforms[0].dx;
+			//transforms[1].dy -= 0.95 * transforms[0].dy;
+			//transforms[1].da -= 0.95 * transforms[0].da;
+			transforms[1].da *= 0.98;
+			kSwitch *= 0.95;
+		}
+	}
+	if (kSwitch < 1.0)
+		tau_stab *= (4.0 + kSwitch) / 5.0;
+
+
+	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx);
+	transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
+	transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
+
+	//transforms[2].dx = 
+	//KF.correct(transforms[1].dx);
+
+	// Применение фильтра Калмана
+	//cv::Mat prediction = KF.predict();
+
+
+	if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
+	{
+		transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
+		transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
+		transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+	}
+	//transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
+	//if (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0)
+	//transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
+	//if (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0)
+	//transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+}
 static void download(const cuda::GpuMat& d_mat, vector<Point2f>& vec)
 {
 	vec.resize(d_mat.cols);
@@ -683,59 +790,59 @@ void GfixBorder(cuda::GpuMat& frame_stabilized, Rect& roi)
 }
 
 
-void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0, 
-	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms, 
+void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0,
+	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
 	int& n, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
 {
 	//for (int i = 0; i < 1; ++i)
 	//{
-		capture >> oldFrame;
-		//resize(oldFrame, oldFrame, Size(oldFrame.cols * 3, oldFrame.rows * 3), 0.0, 0.0, INTER_LINEAR);
-		gOldFrame.upload(oldFrame);
-		cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
-		//cuda::resize(gOldFrame, gOldFrame, Size(gOldFrame.cols, gOldFrame.rows));
+	capture >> oldFrame;
+	//resize(oldFrame, oldFrame, Size(oldFrame.cols * 3, oldFrame.rows * 3), 0.0, 0.0, INTER_LINEAR);
+	gOldFrame.upload(oldFrame);
+	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
+	//cuda::resize(gOldFrame, gOldFrame, Size(gOldFrame.cols, gOldFrame.rows));
 
-		cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		//cvtColor(oldFrame, oldGray, COLOR_BGR2GRAY);
-		cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
-		cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
-		//imshow("Esc for exit.", oldFrame);
-		//waitKey(1);
-		if (qualityLevel > 0.001 && harrisK > 0.001)
+	//cvtColor(oldFrame, oldGray, COLOR_BGR2GRAY);
+	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
+	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
+	//imshow("Esc for exit.", oldFrame);
+	//waitKey(1);
+	if (qualityLevel > 0.001 && harrisK > 0.001)
+	{
+		qualityLevel *= 0.6;
+		harrisK *= 0.6;
+	}
+	else
+	{
+		if (maxCorners > 50)
 		{
-			qualityLevel *= 0.6;
-			harrisK *= 0.6;
+			maxCorners *= 0.98;
+			d_features->setMaxCorners(maxCorners);
 		}
-		else
-		{
-			if (maxCorners > 50)
-			{
-				maxCorners *= 0.98;
-				d_features->setMaxCorners(maxCorners);
-			}
-		}
-		for (int i = 0; i < 1;i++)
-		{
-			transforms[i].dx *= kSwitch;
-			transforms[i].dy *= kSwitch;
-			transforms[i].da *= kSwitch;
-		}
+	}
+	for (int i = 0; i < 1;i++)
+	{
+		transforms[i].dx *= kSwitch;
+		transforms[i].dy *= kSwitch;
+		transforms[i].da *= kSwitch;
+	}
 
-		d_features->detect(gOldGray, gP0, mask_device);
-		//cuda::multiply(gP0, 4.0, gP0);
-		if ((gP0.cols > 20)) {
-			//if (i > 0)
-			//	std::cout << "Iterations  " << i << std::endl;
-			p0.clear();
-			gP0.download(p0);
-			stab_possible = true; //true
-			//break;
-		}
-		else {
-			//cerr << "Unable to find corners!" << endl;
-			stab_possible = false;
-		}
+	d_features->detect(gOldGray, gP0, mask_device);
+	//cuda::multiply(gP0, 4.0, gP0);
+	if ((gP0.cols > 20)) {
+		//if (i > 0)
+		//	std::cout << "Iterations  " << i << std::endl;
+		p0.clear();
+		gP0.download(p0);
+		stab_possible = true; //true
+		//break;
+	}
+	else {
+		//cerr << "Unable to find corners!" << endl;
+		stab_possible = false;
+	}
 
 	//}
 
@@ -748,7 +855,7 @@ void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gO
 {
 	//for (int i = 0; i < 1; ++i)
 	//{
-	
+	// test 3
 	//resize(oldFrame, oldFrame, Size(oldFrame.cols * 3, oldFrame.rows * 3), 0.0, 0.0, INTER_LINEAR);
 	gOldFrame.upload(oldFrame);
 	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
@@ -824,11 +931,11 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, ve
 		//transforms[0] = TransformParam(-(1*d.x + 1*T.at<double>(0, 2)) * n / 2, -(d.y*1 + 1*T.at<double>(1, 2)) * n / 2, ( 0.0 - 3.0*atan2(T.at<double>(1, 0), T.at<double>(0, 0)) + 1.0*transforms[0].da) / 4);
 		//transforms[0] = TransformParam(-d.x, -d.y, 0.0);
 		transforms[0] = TransformParam(-T.at<double>(0, 2), -T.at<double>(1, 2), -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
-		
+
 		//T3d = estimateAffine3D(p0, p1);
 	}
 
-	
+
 }
 
 
