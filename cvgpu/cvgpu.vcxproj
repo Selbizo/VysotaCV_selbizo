@@ -103,8 +103,8 @@
     <LibraryPath>D:\cv_cpp_gpu\opencv-4.10.0\build\install\x64\vc17\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseNitro5|x64'">
-    <IncludePath>D:\cv_cpp_gpu\opencv-4.10.0\build\install\include;$(IncludePath)</IncludePath>
-    <LibraryPath>D:\cv_cpp_gpu\opencv-4.10.0\build\install\x64\vc17\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>E:\cv_gpu\opencv-4.10.0\build\install\include;$(IncludePath)</IncludePath>
+    <LibraryPath>E:\cv_gpu\opencv-4.10.0\build\install\x64\vc17\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
