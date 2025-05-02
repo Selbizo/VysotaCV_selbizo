@@ -568,16 +568,16 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	{
 		transforms[1].da = -1.4;
 	}
-	if (tau_stab < 10.0) {
+	if (tau_stab < 20.0) {
 		tau_stab *= 1.1;
 	}
-	if (tau_stab < 20.0 && !(abs(transforms[1].dx) > 60.0 || abs(transforms[1].dy) > 60.0)) {
+	if (tau_stab < 40.0 && !(abs(transforms[1].dx) > 80.0 || abs(transforms[1].dy) > 80.0)) {
 		tau_stab *= 1.1;
 	}
-	if (tau_stab < 30.0 && !(abs(transforms[1].dx) > 30.0 || abs(transforms[1].dy) > 30.0)) {
+	if (tau_stab < 80.0 && !(abs(transforms[1].dx) > 40.0 || abs(transforms[1].dy) > 40.0)) {
 		tau_stab *= 1.1;
-		if (tau_stab > 30.0)
-			tau_stab = 30.0;
+		if (tau_stab > 80.0)
+			tau_stab = 80.0;
 	}
 	if (roi.x + (int)transforms[1].dx < 0)
 	{

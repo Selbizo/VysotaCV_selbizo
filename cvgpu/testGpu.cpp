@@ -150,7 +150,9 @@ int main()
 
 	VideoCapture capture(videoSource);
 
-
+	// Попытка установить 720p (1280x720)
+	capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
+	capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
 
 
 	if (!capture.isOpened()) {
