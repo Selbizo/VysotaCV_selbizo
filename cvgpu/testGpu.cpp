@@ -27,7 +27,7 @@ int main()
 	{
 		int b = rng.uniform(0, 250);
 		int g = rng.uniform(0, 200);
-		int r = rng.uniform(0, 200);
+		int r = rng.uniform(0, 60);
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
@@ -302,6 +302,11 @@ int main()
 				}
 			}
 
+			if (p1.size() < maxCorners / 4)
+			{
+				p0.push_back(Point2f(a / 2 + rng.uniform(-a / 8, a / 8), b / 2 + rng.uniform(-b/8, b/8)));
+			}
+
 			gFrameGray.copyTo(gOldGray);
 			gP0.upload(p0);
 			if (kSwitch < 0.01)
@@ -516,6 +521,22 @@ int main()
 			gFrameCrop.download(croppedImg);
 			endPing = clock();
 
+
+
+
+			// Вычисляем гомографию
+			cv::Mat Homography;
+			if (p1.size() >= 4) {
+				Homography = cv::findHomography(p0, p1, cv::RANSAC, 3.0);
+			}
+			else {
+				// Недостаточно точек для оценки
+				OrientationAngles{ 0, 0, 0 };
+			}
+
+			// Оцениваем углы ориентации из гомографии
+			auto angles = estimateOrientationFromHomography(Homography, 1000, a/2, b/2);
+
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			// Вывод изображения на дисплей
 			if (writeVideo)
@@ -532,30 +553,29 @@ int main()
 
 				cv::putText(writerFrame, format("-_-Wiener Filter Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("WienerIsOn[1] %d, threadsIsOn[t] %d, stabIsOn %d", wienner, threadwiener, stabPossible), textOrg[1], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("[X Y Roll] %2.2f %2.2f %2.2f]", transforms[1].dx, transforms[1].dy, transforms[1].da), textOrg[3], fontFace, fontScale, color, 2, 8, false);
+				cv::putText(writerFrame, format("[X Y Roll] %2.2f %2.2f %2.2f]", transforms[1].dx, transforms[1].dy, transforms[1].da*RAD_TO_DEG), textOrg[3], fontFace, fontScale, color, 2, 8, false);
 				//cv::putText(writerFrame, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("[dX dY dRoll] %2.2f %2.2f %2.2f]", transforms[0].dx, transforms[0].dy, transforms[0].da), textOrg[2], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("[skoX skoY skoRoll] %2.2f %2.2f %2.2f]", transforms[2].dx, transforms[2].dy, transforms[2].da), textOrg[8], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Filter time variable [3][4] = %3.0f frames, filtering parameter = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
+				cv::putText(writerFrame, format("Filter time[3][4]= %3.0f frames, filter power = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale/1.2, color, 2, 8, false);
 				cv::putText(writerFrame, format("Crop[w][s] = %2.2f, %d Current corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, Scalar(120, 60, 255), 2, 8, false);
 				cv::putText(writerFrame, format("FPS = %2.1f, Ping = %1.3f.", 1 / seconds, secondsPing), textOrg[6], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Image resolution: %3.0f x %3.0f.", a, b), textOrg[7], fontFace, fontScale / 1.2, color, 2, 8, false);
 
 				cv::putText(writerFrame, format("Crop Stab OFF"), textOrgCrop[9], fontFace, fontScale * 1.5, Scalar(30, 30, 200), 2, 8, false);
-				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.5, Scalar(255, 230, 230), 2, 8, false);
+				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.5, Scalar(255, 20, 200), 2, 8, false);
 				cv::putText(writerFrame, format("Crop Stab ON"), textOrgStab[9], fontFace, fontScale * 1.5, Scalar(20, 200, 20), 2, 8, false);
 				cv::putText(writerFrame, format("atan: %3.3f x %3.3f.", framePart * (a - c * cos(atan(b / a) - transforms[1].da)) / 2, framePart * (b - c * sin(atan(b / a) - transforms[1].da)) / 2), textOrgStab[7], fontFace, fontScale / 1.2, color, 2, 8, false);
-
+				cv::putText(writerFrame, format("Roll= %2.2f, Pitch= %2.2f, Yaw= %2.2f", angles.roll* RAD_TO_DEG, angles.pitch* RAD_TO_DEG, angles.yaw* RAD_TO_DEG), textOrg[9], fontFace, fontScale/1.2, color, 2, 8, false);
 				if (p0.size() > 0)
 					for (uint i = 0; i < p0.size(); i++)
 						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1); //circle(writerFrame, p1[i], 2, colors[i], -1);
 
 
-				//circle(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), 30, Scalar(5, 225, 230), 4); //circle(writerFrame, p1[i], 2, colors[i], -1);
-
-				//cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2 , -transforms[1].dy + b / 2), cv::Size(a*framePart/2, b * framePart/2), 0.0 - 180.0*transforms[1].da/3.1415, 0, 360, Scalar(180, 180, 20), 1);
-				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2 + 0 * framePart * (a - c * cos(atan(b / a) - transforms[1].da)) / 2, -transforms[1].dy + b / 2 + 0 * framePart * (b - c * sin(atan(b / a) - transforms[1].da)) / 40), cv::Size(a * framePart / 2, 0), 0.0 - 180.0 * transforms[1].da / 3.1415, 0, 360, Scalar(20, 200, 25), 2);
-				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2 + 0 * framePart * (a - c * cos(atan(b / a) - transforms[1].da)) / 2, -transforms[1].dy + b / 2 + 0 * framePart * (b - c * sin(atan(b / a) - transforms[1].da)) / 2), cv::Size(0, b * framePart / 2), 0.0 - 180.0 * transforms[1].da / 3.1415, 0, 360, Scalar(20, 200, 25), 2);
+				
+				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(a * framePart / 2, 0), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(200, 20, 80), 2);
+				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(0, b * framePart / 2), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(200, 20, 80), 2);
+				
 				//ellipse(h, point, cv::Size(0, cvRound(double(len) / 2.0)), 90.0 - theta, 0, 360, Scalar(255), FILLED);
 				cv::imshow("Writed", writerFrame);
 				writer.write(writerFrame);

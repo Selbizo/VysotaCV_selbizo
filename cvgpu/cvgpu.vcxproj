@@ -71,8 +71,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>E:\cv_gpu\opencv-4.10.0\build\install\include;$(IncludePath)</IncludePath>
-    <LibraryPath>E:\cv_gpu\opencv-4.10.0\build\install\x64\vc17\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>D:\cv_cpp_gpu\opencv-4.10.0\build\install\include;$(IncludePath)</IncludePath>
+    <LibraryPath>D:\cv_cpp_gpu\opencv-4.10.0\build\install\x64\vc17\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="PositionEstimator_v2_0.cpp" />
     <ClCompile Include="testGpu.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
