@@ -34,19 +34,23 @@ int main(int argc, char** argv)
     cv::VideoCapture cap_right, cap_left;
     bool pixelLeft = true;
     // Открываем две камеры (указываем соответствующие индексы)
-    if (pixelLeft)
-    {
-    //cv::VideoCapture cap_left("http://10.142.69.133:4747/video"); //pixel
-    //cv::VideoCapture cap_right("http://10.142.69.71:4747/video"); //xiaomi
+    //if (pixelLeft)
+    //{
+    ////cv::VideoCapture cap_left("http://10.142.69.133:4747/video"); //pixel
+    ////cv::VideoCapture cap_right("http://10.142.69.71:4747/video"); //xiaomi
 
-    cap_left.open("http://192.168.48.133:4747/video"); //pixel 1
-    cap_right.open("http://192.168.48.136:4747/video"); //pixel 4
-    }
-    else
-    {
-    cap_left.open("http://192.168.48.136:4747/video"); //pixel 4
-    cap_right.open("http://192.168.48.133:4747/video"); //pixel 1
-    }
+    //cap_left.open("http://192.168.48.133:4747/video"); //pixel 1
+    //cap_right.open("http://192.168.48.136:4747/video"); //pixel 4
+    //}
+    //else
+    //{
+    //cap_left.open("http://192.168.48.136:4747/video"); //pixel 4
+    //cap_right.open("http://192.168.48.133:4747/video"); //pixel 1
+    //}
+
+
+    cap_left.open(0); //pixel 4
+    cap_right.open(1); //pixel 1
 
     //if (pixelLeft)
     //{
