@@ -96,6 +96,12 @@ int main()
 	}
 	
 
+	//для гомографии
+
+	// Траектория камеры
+	vector<Mat> homoTransforms;
+
+
 	// переменные для фильтра Виннера
 	//cv::Ptr <cuda::Filter> gaussFilter = cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(31, 31), 1.0, 1.0);
 	cv::Ptr <cuda::Filter> laplasianFilterGray = cuda::createLaplacianFilter(CV_8UC1, CV_8UC1);
@@ -116,14 +122,10 @@ int main()
 	double THETA = 0.0;
 
 	//для обработки трех каналов по Виннеру
-	vector<Mat> channels(3);
-	vector<Mat> channelsWienner(3);
+	vector<Mat> channels(3), channelsWienner(3);
 	Mat frame_wienner;
 
-
-
-	vector<cuda::GpuMat> gChannels(3);
-	vector<cuda::GpuMat> gChannelsWienner(3);
+	vector<cuda::GpuMat> gChannels(3), gChannelsWienner(3);
 	cuda::GpuMat gFrameWienner;
 
 
@@ -173,14 +175,6 @@ int main()
 	roi.width = a * framePart;
 	roi.height = b * framePart;
 
-	// Параметры фильтра Калмана
-	int stateSize = 2;           // Размер состояния (x, v)
-	int measSize = 1;            // Размер измерения (x)
-	int contrSize = 0;           // Размер управления (нет управления)
-
-	Mat greenLine(cv::Size(a, b), CV_8UC3, Scalar(0, 0, 0));
-	Point point(a / 2, b / 2);
-
 	//Для отображения надписей на кадре
 	setlocale(LC_ALL, "RU");
 	vector <Point> textOrg(10);
@@ -217,15 +211,7 @@ int main()
 	double fontScale = 1.4;
 	Scalar color(40, 140, 0);
 
-
-	line(greenLine, Point(a / 2, b * 5 / 9), Point(a / 2, b), Scalar(0, 255, 0), 2);
-
-	line(greenLine, Point(5 * a / 9, b / 2), Point(a, b / 2), Scalar(0, 255, 0), 2);
-	line(greenLine, Point(0, b / 2), Point(4 * a / 9, b / 2), Scalar(0, 255, 0), 2);
-	cuda::GpuMat gGreenLine;
-	gGreenLine.upload(greenLine);
-
-	// Создадим маску по умолчанию ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	// Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat mask_host = Mat::zeros(cv::Size(a / n, b / n), CV_8U);
 	rectangle(mask_host, Rect(a * (1.0 - 0.8) / 2 / n, b * (1.0 - 0.8) / 2 / n, a * 0.8 / n, b * 0.8 / n), Scalar(255), FILLED); // Прямоугольная маска
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -237,7 +223,6 @@ int main()
 	cuda::GpuMat complexH;
 	Ptr<cuda::DFT> forwardDFT = cuda::createDFT(cv::Size(a, b), DFT_SCALE | DFT_COMPLEX_INPUT);
 	Ptr<cuda::DFT> inverseDFT = cuda::createDFT(cv::Size(a, b), DFT_INVERSE | DFT_COMPLEX_INPUT);
-
 
 	// Создаем объект для записи отклонения в CSV файл
 	std::ofstream outputFile("output.txt");
@@ -256,13 +241,10 @@ int main()
 		if (stabPossible)
 			break;
 	}
-
-
+	
 	//~~~~~~~~создание объекта записи видео
-	VideoWriter writer;
-	VideoWriter writerSmall;
-	cv::Mat writerFrame(oldFrame.rows * 2, oldFrame.cols * 2, CV_8UC3);
-	cv::Mat writerFrameSmall(oldFrame.rows, oldFrame.cols, CV_8UC3);
+	VideoWriter writer, writerSmall;
+	cv::Mat writerFrame(oldFrame.rows * 2, oldFrame.cols * 2, CV_8UC3), writerFrameSmall(oldFrame.rows, oldFrame.cols, CV_8UC3);
 	if (writeVideo) {
 		bool isColor = (oldFrame.type() == CV_8UC3);
 		//--- INITIALIZE VIDEOWRITER
@@ -289,7 +271,7 @@ int main()
 	while (true) {
 		//нужно только для iirAdaptive
 
-			   //readFrameFromCapture(capture, frame);
+		//readFrameFromCapture(capture, frame);
 		++frameCount;
 		secondsPing = 0.95 * secondsPing + 0.05 * (double)(endPing - startPing) / CLOCKS_PER_SEC;
 
@@ -304,7 +286,7 @@ int main()
 				}
 			}
 
-			//if (p1.size() < maxCorners / 4 && rng.uniform(0.0, 1.0) > 0.98)
+			//if ( rng.uniform(0.0, 1.0) > 0.95)
 			//{
 			//	p0.push_back(Point2f(a / 2 + rng.uniform(-a / 3, a / 3), b / 2 + rng.uniform(-b/3, b/3)));
 			//}
@@ -324,14 +306,11 @@ int main()
 				kSwitch = 1.0;
 
 			capture >> frame; //нужно для .upload(frame)
-
-
 		}
 
 		startPing = clock();
 		if (frameCnt == 200)
 		{
-
 			end = clock();
 			seconds = (double)(end - start) / CLOCKS_PER_SEC / (frameCnt + 1);
 			frameCnt = 0;
@@ -346,7 +325,6 @@ int main()
 			capture.release();
 			capture = VideoCapture(videoSource);
 			capture >> frame;
-
 		}
 
 
@@ -368,8 +346,6 @@ int main()
 			gFrame.upload(frame);
 
 			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
-			//cuda::bilateralFilter(gFrame, gFrame, 7, 3.0, 1.0);
-
 			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
 			cuda::bilateralFilter(gFrameGray, gFrameGray, 7, 3.0, 1.0);
 		}
@@ -393,14 +369,9 @@ int main()
 				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 			}
 			gFrame.upload(frame);
-			//}
-
-			//cuda::bilateralFilter(gFrame, gFrame, 7, 3.0, 1.0);
 
 			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
-
 			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, 3);
-
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
@@ -410,19 +381,16 @@ int main()
 			else
 				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, n, kSwitch, a, b, mask_device, stabPossible); //70ms
 
-
 			if (stabPossible) {
 				d_pyrLK_sparse->calc(gOldGray, gFrameGray, gP0, gP1, gStatus, gErr);
 				gP1.download(p1);
 				gErr.download(err);
 			}
 			//cout << "err.Size() = " << err.Size();
-
 		}
 		else if (stabPossible) {
 			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
 			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, 3);
-
 			d_pyrLK_sparse->calc(useGray ? gOldGray : gOldFrame, useGray ? gFrameGray : gFrame, gP0, gP1, gStatus);
 			//cuda::multiply(gP1, 4.0, gP1);
 			gP1.download(p1);
@@ -437,15 +405,16 @@ int main()
 		}
 		if (stabPossible) {
 			download(gStatus, status);
-
 			// условно gFrameOpticalFlow.join();
-			getBiasAndRotation(p0, p1, d, transforms, T, n, T3d); //уже можно делать Винеровскую фильтрацию
+			getBiasAndRotation(p0, p1, d, transforms, T, n); //уже можно делать Винеровскую фильтрацию
+
+			
+
 
 			if (T.rows == 2 && T.cols == 3)
 			{
 				double xDev = T.at<double>(0, 2);
 				double yDev = T.at<double>(1, 2);
-
 				// Запись отклонения в CSV файл
 				//outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx <<"\t" << transforms[1].dy << endl;
 				outputFile << frameCount << "," << round(xDev * 100.0) / 100.0 << "," << round(yDev * 100.0) / 100.0 << "," << round(transforms[1].dx * 100.0) / 100.0 << "," << round(transforms[1].dy * 100.0) / 100.0 << endl;
@@ -502,26 +471,9 @@ int main()
 				cuda::bilateralFilter(gFrame, gFrame, 13, 5.0, 3.0);
 			}
 
-
-
-			//cuda::addWeighted(gFrame, 1.0, gGreenLine, 0.3, 1.0, gFrame);
-			//cuda::add(gFrame, gGreenLine, gFrame);
-
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b));
 
-
-			gFrameCrop = gFrameStabilized(roi); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-			//gFrameCrop = gFrameStabilized;
-
-			//cuda::cvtColor(gFrameCrop, gFrameCropHigh, COLOR_BGR2GRAY);
-			//gFrameCropHigh.convertTo(gFrameCropHigh, CV_8UC1);
-			////highPassFilterBGR->apply(gFrameCrop, gFrameCropHigh);
-			//laplasianFilterGray->apply(gFrameCropHigh, gFrameCropHigh);
-			//maxBoxFilterGray->apply(gFrameCropHigh, gFrameCropHigh);
-			//cuda::cvtColor(gFrameCropHigh, gFrameCropHigh, COLOR_GRAY2BGR);
-			//cuda::addWeighted(gFrameCrop, 1.0, gFrameCropHigh, 0.3, 0.8, gFrameCrop);
-
-
+			gFrameCrop = gFrameStabilized(roi); 
 
 			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, 3);
 			gFrameCrop.download(croppedImg);
@@ -545,7 +497,6 @@ int main()
 				cv::putText(writerFrame, format("-_-Wiener Filter Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("WienerIsOn[1] %d, threadsIsOn[t] %d, stabIsOn %d", wienner, threadwiener, stabPossible), textOrg[1], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("[X Y Roll] %2.2f %2.2f %2.2f]", transforms[1].dx, transforms[1].dy, transforms[1].da*RAD_TO_DEG), textOrg[3], fontFace, fontScale, color, 2, 8, false);
-				//cv::putText(writerFrame, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("[dX dY dRoll] %2.2f %2.2f %2.2f]", transforms[0].dx, transforms[0].dy, transforms[0].da), textOrg[2], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("[skoX skoY skoRoll] %2.2f %2.2f %2.2f]", transforms[2].dx, transforms[2].dy, transforms[2].da), textOrg[8], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Filter time[3][4]= %3.0f frames, filter power = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale/1.2, color, 2, 8, false);
@@ -560,20 +511,13 @@ int main()
 				
 				if (p0.size() > 0)
 					for (uint i = 0; i < p0.size(); i++)
-						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1); //circle(writerFrame, p1[i], 2, colors[i], -1);
-
-
-				
+						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1);
+								
 				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(a * framePart / 2, 0), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
 				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(0, b * framePart / 2), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
 				
-				//ellipse(h, point, cv::Size(0, cvRound(double(len) / 2.0)), 90.0 - theta, 0, 360, Scalar(255), FILLED);
 				cv::imshow("Writed", writerFrame);
 				writer.write(writerFrame);
-
-
-
-
 				writerSmall.write(croppedImg);
 
 			}
@@ -602,16 +546,6 @@ int main()
 
 			gFrameCrop = gFrameStabilized(roi);
 
-			//cuda::cvtColor(gFrameCrop, gFrameCropHigh, COLOR_BGR2GRAY);
-			//gFrameCropHigh.convertTo(gFrameCropHigh, CV_8UC1);
-			////highPassFilterBGR->apply(gFrameCrop, gFrameCropHigh);
-			//laplasianFilterGray->apply(gFrameCropHigh, gFrameCropHigh);
-			//maxBoxFilterGray->apply(gFrameCropHigh, gFrameCropHigh);
-			//cuda::cvtColor(gFrameCropHigh, gFrameCropHigh, COLOR_GRAY2BGR);
-			//cuda::addWeighted(gFrameCrop, 1.0, gFrameCropHigh, 0.3, 0.8, gFrameCrop);
-
-
-
 			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, 3);
 			gFrameCrop.download(croppedImg);
 			//endPing = clock();
@@ -621,7 +555,6 @@ int main()
 				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
 				gFrame.download(frame);
 
-				//cv::putText(frame, format("Raw Video Stream Crop"), textOrg[0], fontFace, fontScale, color, 2, 8, false);
 				frame.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
 
 				croppedImg.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
@@ -633,14 +566,8 @@ int main()
 					textOrg[2], fontFace, fontScale, Scalar(0, 0, 255), 2, 8, false);
 				cv::putText(writerFrame, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
-				//cv::putText(writerFrame, format("Cut-off[w][s] %2.2f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Crop[w][s] = %2.1f ,%d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), textOrg[6], fontFace, fontScale, color, 2, 8, false);
-
-
-				//if (p0.size() > 0)
-				//	for (uint i = 0; i < p0.size(); i++)
-				//		circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 8, colors[i], -1);
 
 				cv::imshow("Writed", writerFrame);
 				writer.write(writerFrame);
@@ -655,7 +582,6 @@ int main()
 					textOrg[2], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
-				//cv::putText(croppedImg, format("Crop[w][s] %2.2f, %d Corners of %d.", 1/framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Crop[w][s] = %2.1f ,%d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), textOrg[6], fontFace, fontScale, color, 2, 8, false);
 

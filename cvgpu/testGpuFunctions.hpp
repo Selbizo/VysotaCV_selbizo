@@ -881,47 +881,10 @@ void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gO
 	//cvtColor(oldFrame, oldGray, COLOR_BGR2GRAY);
 	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
 	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
-	// 
-	//if (qualityLevel > 0.001 && harrisK > 0.001)
-	//{
-	//	qualityLevel *= 0.6;
-	//	harrisK *= 0.6;
-	//}
-	//else
-	//{
-	//	if (maxCorners > 50)
-	//	{
-	//		maxCorners *= 0.98;
-	//		d_features->setMaxCorners(maxCorners);
-	//	}
-	//}
-	//for (int i = 0; i < 1;i++)
-	//{
-	//	transforms[i].dx *= kSwitch;
-	//	transforms[i].dy *= kSwitch;
-	//	transforms[i].da *= kSwitch;
-	//}
-
-	////d_features->detect(gOldGray, gP0, mask_device);
-	////cuda::multiply(gP0, 4.0, gP0);
-	//if ((gP0.cols > 20)) {
-	//	//if (i > 0)
-	//	//	std::cout << "Iterations  " << i << std::endl;
-	//	p0.clear();
-	//	gP0.download(p0);
-	//	stab_possible = true;
-	//	//break;
-	//}
-	//else {
-	//	//cerr << "Unable to find corners!" << endl;
-	//	stab_possible = false;
-	//}
-
-	//}
 	stab_possible = false;
 }
 
-void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T, int n, Mat& T3d)
+void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T, int n)
 {
 	for (uint i = 0; i < p1.size(); i++)
 	{
@@ -942,17 +905,39 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, ve
 	else
 	{
 		T = estimateAffine2D(p0, p1);
-		//T = estimateAffinePartial2D(p0, p1, noArray());
-		//transforms[0] = TransformParam(-(1*d.x + 1*T.at<double>(0, 2)) * n / 2, -(d.y*1 + 1*T.at<double>(1, 2)) * n / 2, ( 0.0 - 3.0*atan2(T.at<double>(1, 0), T.at<double>(0, 0)) + 1.0*transforms[0].da) / 4);
-		//transforms[0] = TransformParam(-d.x, -d.y, 0.0);
+
 		transforms[0] = TransformParam(-T.at<double>(0, 2), -T.at<double>(1, 2), -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
 
-		//T3d = estimateAffine3D(p0, p1);
 	}
 
 
 }
 
+
+Mat videoStabHomograpy(cuda::GpuMat& gFrame, vector<Point2f>& p0, vector<Point2f>& p1, vector<Mat>& homoTransforms)
+{
+	// Вычисляем гомографию
+	Mat H;
+	if (p0.size() >= 4) {
+		H = findHomography(p0, p1, RANSAC);
+		homoTransforms.push_back(H);
+	}
+	else {
+		homoTransforms.push_back(Mat::eye(3, 3, CV_64F));
+	}
+
+	if (homoTransforms.size() < 400) {
+		return homoTransforms.back();
+	}
+	// Вычисляем среднее преобразование в окне
+	Mat sumH = Mat::zeros(3, 3, CV_64F);
+	int count = 0;
+	for (int i = homoTransforms.size() - 400; i < homoTransforms.size(); i++) {
+		sumH += homoTransforms[i];
+		count++;
+	}
+	return sumH / count;
+}
 
 void readFrameFromCapture(VideoCapture* capture, Mat* frame)
 {
