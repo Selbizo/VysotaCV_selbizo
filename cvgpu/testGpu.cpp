@@ -27,7 +27,7 @@ int main()
 	{
 		int b = rng.uniform(0, 250);
 		int g = rng.uniform(0, 200);
-		int r = rng.uniform(0, 60);
+		int r = rng.uniform(0, 200);
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
@@ -39,9 +39,9 @@ int main()
 
 	int	srcType = CV_8UC1;
 	int maxCorners = 400 / n;      //100/n
-	double qualityLevel = 0.0001; //0.0001
-	double minDistance = 7.0; //8.0
-	int blockSize = 21; //45 80 максимальное значение окна
+	double qualityLevel = 0.02; //0.0001
+	double minDistance = 8.0; //8.0
+	int blockSize = 45; //45 80 максимальное значение окна
 	bool useHarrisDetector = true;
 	double harrisK = qualityLevel;
 
@@ -51,9 +51,9 @@ int main()
 
 	// переменные для оптического потока
 	bool useGray = true;
-	int winSize = 80; //blockSize;
+	int winSize = blockSize;
 	int maxLevel = 5;
-	int iters = 20;
+	int iters = 10;
 	double minDist = minDistance;
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
@@ -93,7 +93,7 @@ int main()
 		transforms[i].dy = 0.0;
 		transforms[i].da = 0.0;
 	}
-
+	
 
 	// переменные для фильтра Виннера
 	//cv::Ptr <cuda::Filter> gaussFilter = cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(31, 31), 1.0, 1.0);
@@ -151,8 +151,9 @@ int main()
 	VideoCapture capture(videoSource);
 
 	// Попытка установить 720p (1280x720)
-	capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
-	capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
+
+	//capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
+	//capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
 
 
 	if (!capture.isOpened()) {
@@ -188,7 +189,7 @@ int main()
 	vector <Point> textOrgStab(10);
 	vector <Point> textOrgOrig(10);
 	if (writeVideo)
-	{
+	{ 
 		for (int i = 0; i < 10; i++)
 		{
 			textOrg[i].x = 10 + a;
@@ -227,7 +228,7 @@ int main()
 
 	// Создадим маску по умолчанию ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat mask_host = Mat::zeros(cv::Size(a / n, b / n), CV_8U);
-	rectangle(mask_host, Rect(a * (1.0 - 0.7) / 2 / n, b * (1.0 - 0.2) / 2 / n, a * 0.5 / n, b * 0.5 / n), Scalar(255), FILLED); // Прямоугольная маска
+	rectangle(mask_host, Rect(a * (1.0 - 0.8) / 2 / n, b * (1.0 - 0.8) / 2 / n, a * 0.8 / n, b * 0.8 / n), Scalar(255), FILLED); // Прямоугольная маска
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 	cuda::GpuMat mask_device(mask_host);
@@ -304,10 +305,10 @@ int main()
 				}
 			}
 
-			if (p1.size() < maxCorners / 4)
-			{
-				p0.push_back(Point2f(a / 2 + rng.uniform(-a / 8, a / 8), b / 2 + rng.uniform(-b/8, b/8)));
-			}
+			//if (p1.size() < maxCorners / 4 && rng.uniform(0.0, 1.0) > 0.98)
+			//{
+			//	p0.push_back(Point2f(a / 2 + rng.uniform(-a / 3, a / 3), b / 2 + rng.uniform(-b/3, b/3)));
+			//}
 
 			gFrameGray.copyTo(gOldGray);
 			gP0.upload(p0);
@@ -350,7 +351,7 @@ int main()
 		}
 
 
-		if (writeVideo) {
+		if (writeVideo && stabPossible) {
 			//cv::putText(frame, format("Raw Video Stream"), textOrg[9], fontFace, fontScale, color, 2, 8, false);
 			rectangle(writerFrame, Rect(a, b, a, b), Scalar(0, 0, 0), FILLED); // Прямоугольная маска
 			frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
@@ -388,6 +389,10 @@ int main()
 			//if (stabPossible)
 			//{
 			capture >> frame;
+			if (!stabPossible) {
+				rectangle(writerFrame, Rect(a, b, a, b), Scalar(0, 0, 0), FILLED); // Прямоугольная маска
+				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
+			}
 			gFrame.upload(frame);
 			//}
 
@@ -523,22 +528,7 @@ int main()
 			gFrameCrop.download(croppedImg);
 			endPing = clock();
 
-
-
-
-			// Вычисляем гомографию
-			cv::Mat Homography;
-			if (p1.size() >= 4) {
-				Homography = cv::findHomography(p0, p1, cv::RANSAC, 3.0);
-			}
-			else {
-				// Недостаточно точек для оценки
-				OrientationAngles{ 0, 0, 0 };
-			}
-
-			// Оцениваем углы ориентации из гомографии
-			auto angles = estimateOrientationFromHomography(Homography, 1000, a/2, b/2);
-
+			
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 			// Вывод изображения на дисплей
 			if (writeVideo)
@@ -568,7 +558,7 @@ int main()
 				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.5, Scalar(255, 20, 200), 2, 8, false);
 				cv::putText(writerFrame, format("Crop Stab ON"), textOrgStab[9], fontFace, fontScale * 1.5, Scalar(20, 200, 20), 2, 8, false);
 				cv::putText(writerFrame, format("atan: %3.3f x %3.3f.", framePart * (a - c * cos(atan(b / a) - transforms[1].da)) / 2, framePart * (b - c * sin(atan(b / a) - transforms[1].da)) / 2), textOrgStab[7], fontFace, fontScale / 1.2, color, 2, 8, false);
-				cv::putText(writerFrame, format("Roll= %2.2f, Pitch= %2.2f, Yaw= %2.2f", angles.roll* RAD_TO_DEG, angles.pitch* RAD_TO_DEG, angles.yaw* RAD_TO_DEG), textOrg[9], fontFace, fontScale/1.2, color, 2, 8, false);
+				
 				if (p0.size() > 0)
 					for (uint i = 0; i < p0.size(); i++)
 						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1); //circle(writerFrame, p1[i], 2, colors[i], -1);
