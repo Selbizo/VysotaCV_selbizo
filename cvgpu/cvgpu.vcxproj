@@ -204,7 +204,10 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="PositionEstimator_v2_0.cpp" />
-    <ClCompile Include="testGpu.cpp" />
+    <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="wienerFilter.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
