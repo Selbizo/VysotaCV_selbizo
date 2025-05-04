@@ -118,7 +118,7 @@ void fixBorder(Mat& frame_stabilized, double frame_part);
 
 
 //void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0, double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms);
-void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T);
+//void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T);
 
 void calcPSF(Mat& outputImg, Size filterSize, int len, double theta);
 void calcPSF(Mat& outputImg, Size filterSize, int len, double theta, Mat& temp);
@@ -260,7 +260,7 @@ void edgetaper(const Mat& inputImg, Mat& outputImg, double gamma, double beta)
 
 
 
-//~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void GcalcPSF(cuda::GpuMat& outputImg, Size filterSize, Size psfSize, double len, double theta)
 {
 	// Создаем GpuMat для временного хранения
@@ -497,7 +497,7 @@ void GcalcWnrFilter(const cuda::GpuMat& input_h_PSF, cuda::GpuMat& output_G, dou
 //	multiply(inputImg, w, outputImg);
 //}
 
-//~~~~~~~~~~~~~~
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 
@@ -561,38 +561,37 @@ void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& f
 void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch, vector<TransformParam>& velocity)//, cv::KalmanFilter& KF)
 {
 	//if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
-	if ((abs(transforms[0].dx) - 10.0 < 0.6 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 0.6 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 0.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
+	if ((abs(transforms[0].dx) - 10.0 < 3.0 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 3.0 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 3.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	{
-		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx);
+		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx); //накопление по перемещнию внутри кадра
 		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy);
 		transforms[1].da = kSwitch * (transforms[1].da * (1.7 * tau_stab - 1.0) / (1.7 * tau_stab) + kSwitch * transforms[0].da);
 	}
 
-	if (transforms[1].da > 1.4)
+	if (transforms[1].da > 2.0)
+		transforms[1].da = 2.0;
+
+	if (transforms[1].da < -2.0)
+		transforms[1].da = -2.0;
+
+	if (tau_stab < 30.0) 
+		tau_stab *= 1.1;
+	
+	if (tau_stab < 50.0 && !(abs(transforms[1].dx) > cols / 2 || abs(transforms[1].dy) > rows / 2)) 
+		tau_stab *= 1.1;
+	
+	if (tau_stab < 120.0 && !(abs(transforms[1].dx) > cols / 3 || abs(transforms[1].dy) > rows / 3)) 
 	{
-		transforms[1].da = 1.4;
-	}
-	if (transforms[1].da < -1.4)
-	{
-		transforms[1].da = -1.4;
-	}
-	if (tau_stab < 20.0) {
 		tau_stab *= 1.1;
-	}
-	if (tau_stab < 40.0 && !(abs(transforms[1].dx) > 80.0 || abs(transforms[1].dy) > 80.0)) {
-		tau_stab *= 1.1;
-	}
-	if (tau_stab < 80.0 && !(abs(transforms[1].dx) > 40.0 || abs(transforms[1].dy) > 40.0)) {
-		tau_stab *= 1.1;
-		if (tau_stab > 80.0)
-			tau_stab = 80.0;
+		if (tau_stab > 120.0)
+			tau_stab = 120.0;
 	}
 	if (roi.x + (int)transforms[1].dx < 0)
 	{
 		transforms[1].dx = double(1 - roi.x);
 		if (tau_stab > 50) {
 			tau_stab *= 0.9;
-			transforms[1].da *= 0.98;
+			transforms[1].da *= 0.99;
 			kSwitch *= 0.95;
 		}
 
@@ -602,7 +601,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dx = (double)(cols - roi.x - roi.width);
 		if (tau_stab > 50) {
 			tau_stab *= 0.9;
-			transforms[1].da *= 0.98;
+			transforms[1].da *= 0.99;
 			kSwitch *= 0.95;
 		}
 	}
@@ -612,7 +611,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dy = (double)(1 - roi.y);
 		if (tau_stab > 10) {
 			tau_stab *= 0.9;
-			transforms[1].da *= 0.98;
+			transforms[1].da *= 0.99;
 			kSwitch *= 0.95;
 		}
 	}
@@ -621,22 +620,24 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dy = (double)(rows - roi.y - roi.height);
 		if (tau_stab > 50) {
 			tau_stab *= 0.9;
-			transforms[1].da *= 0.98;
+			transforms[1].da *= 0.99;
 			kSwitch *= 0.95;
 		}
 	}
+
 	if (kSwitch < 1.0)
 		tau_stab *= (4.0 + kSwitch) / 5.0;
-
+	
 	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx);
 	transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
 	transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
 
-	if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
+	//if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
+	if (true)
 	{
-		transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
-		transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
-		transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+		transforms[3].dx = (1.0 - 0.9) * transforms[3].dx + 0.9 * abs(transforms[0].dx); //среднее абсолютное отклонение колебаний
+		transforms[3].dy = (1.0 - 0.9) * transforms[3].dy + 0.9 * abs(transforms[0].dy);
+		transforms[3].da = (1.0 - 0.9) * transforms[3].da + 0.9 * abs(transforms[0].da);
 	}
 
 
@@ -647,7 +648,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 
 void iirAdaptiveHighPass(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch)//, cv::KalmanFilter& KF)
 {
-	if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
+	if ((abs(transforms[0].dx) - (double)rows/2 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - (double)rows / 2 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.2 < 3.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	{
 		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx);
 		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy);
@@ -788,21 +789,15 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
 	int& n, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
 {
-	//for (int i = 0; i < 1; ++i)
-	//{
 	capture >> oldFrame;
-	//resize(oldFrame, oldFrame, Size(oldFrame.cols * 3, oldFrame.rows * 3), 0.0, 0.0, INTER_LINEAR);
+
 	gOldFrame.upload(oldFrame);
+
 	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
-	//cuda::resize(gOldFrame, gOldFrame, Size(gOldFrame.cols, gOldFrame.rows));
-
-	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	//cvtColor(oldFrame, oldGray, COLOR_BGR2GRAY);
+	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
 	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
-	//imshow("Esc for exit.", oldFrame);
-	//waitKey(1);
+
 	if (qualityLevel > 0.001 && harrisK > 0.001)
 	{
 		qualityLevel *= 0.6;
@@ -824,17 +819,15 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 	}
 
 	d_features->detect(gOldGray, gP0, mask_device);
-	//cuda::multiply(gP0, 4.0, gP0);
+
 	if ((gP0.cols > 20)) {
-		//if (i > 0)
-		//	std::cout << "Iterations  " << i << std::endl;
+
 		p0.clear();
 		gP0.download(p0);
 		stab_possible = true; //true
-		//break;
+	
 	}
 	else {
-		//cerr << "Unable to find corners!" << endl;
 		stab_possible = false;
 	}
 
@@ -847,17 +840,10 @@ void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gO
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
 	int& n, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
 {
-	//for (int i = 0; i < 1; ++i)
-	//{
-	// test 3
-	//resize(oldFrame, oldFrame, Size(oldFrame.cols * 3, oldFrame.rows * 3), 0.0, 0.0, INTER_LINEAR);
 	gOldFrame.upload(oldFrame);
 	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
-	//cuda::resize(gOldFrame, gOldFrame, Size(gOldFrame.cols, gOldFrame.rows));
 
-	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-	//cvtColor(oldFrame, oldGray, COLOR_BGR2GRAY);
+	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0);
 	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
 	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
 	stab_possible = false;
@@ -925,11 +911,9 @@ void readFrameFromCapture(VideoCapture* capture, Mat* frame)
 
 }
 
-
 void channelWiener(const cuda::GpuMat* gChannel, cuda::GpuMat* gChannelWiener,
 	const cuda::GpuMat* complexH, cv::Ptr<cuda::DFT>* forwardDFT, cv::Ptr<cuda::DFT>* inverseDFT)
 {
-
 	Gfilter2DFreqV2(*gChannel, *gChannelWiener, *complexH, *forwardDFT, *inverseDFT);
 }
 
@@ -1140,4 +1124,84 @@ int camera_calibration(int argc, char** argv) {
 
 
 	return 0;
+}
+
+bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, const double& b, double& nsr, bool& wienner, bool& threadwiener, double& Q, double& tauStab, double& framePart, Rect& roi)
+{
+	if (keyboard == 'c')
+	{
+		imwrite("imgInCam.jpg", frame);
+		imwrite("imgOutCam.jpg", croppedImg);
+	}
+	if (keyboard == 'q' || keyboard == 27)
+		return true;
+	if (keyboard == '8')
+	{
+		nsr = nsr * 0.8;
+	}
+	if (keyboard == '7')
+	{
+		nsr = nsr * 1.25;
+	}
+	if (keyboard == '1')
+	{
+		wienner = wienner ^ true;
+	}
+	if (keyboard == 't')
+	{
+		threadwiener = threadwiener ^ true;
+	}
+
+	if (keyboard == '6')
+	{
+		if (Q < 20.0)
+			Q = Q * 1.05;
+	}
+	if (keyboard == '5')
+	{
+		if (Q > 1.0)
+			Q = Q * 0.95;
+		if (Q < 1.0)
+			Q = 1.0;
+	}
+	if (keyboard == '4')
+	{
+		if (tauStab < 4000)
+			tauStab = tauStab * 2;
+
+	}
+	if (keyboard == '3')
+	{
+		if (tauStab > 4)
+			tauStab = tauStab / 2;
+	}
+	if (keyboard == 's' || keyboard == 'S')
+	{
+		if (framePart < 0.95)
+		{
+			framePart *= 1.01;
+			if (framePart > 0.9)
+				framePart = 0.9;
+			roi.x = a * ((1.0 - framePart) / 2.0);
+			roi.y = b * ((1.0 - framePart) / 2.0);
+			roi.width = a * framePart;
+			roi.height = b * framePart;
+
+		}
+	}
+	if (keyboard == 'w' || keyboard == 'W')
+	{
+		if (framePart > 0.05)
+		{
+			framePart *= 0.99;
+			if (framePart < 0.05)
+				framePart = 0.05;
+			roi.x = a * ((1.0 - framePart) / 2.0);
+			roi.y = b * ((1.0 - framePart) / 2.0);
+			roi.width = a * framePart;
+			roi.height = b * framePart;
+
+		}
+	}
+	return false;
 }
