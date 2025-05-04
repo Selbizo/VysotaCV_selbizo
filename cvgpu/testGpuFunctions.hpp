@@ -558,9 +558,10 @@ void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& f
 	}
 }
 
-void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch)//, cv::KalmanFilter& KF)
+void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch, vector<TransformParam>& velocity)//, cv::KalmanFilter& KF)
 {
-	if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
+	//if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
+	if ((abs(transforms[0].dx) - 10.0 < 0.6 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 0.6 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 0.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	{
 		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx);
 		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy);
@@ -591,11 +592,6 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dx = double(1 - roi.x);
 		if (tau_stab > 50) {
 			tau_stab *= 0.9;
-
-			//transforms[1].dx -= 0.95 * transforms[0].dx;
-			//transforms[1].dy -= 0.95 * transforms[0].dy;
-			//transforms[1].da -= 0.95 * transforms[0].da;
-
 			transforms[1].da *= 0.98;
 			kSwitch *= 0.95;
 		}
@@ -606,9 +602,6 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dx = (double)(cols - roi.x - roi.width);
 		if (tau_stab > 50) {
 			tau_stab *= 0.9;
-			//transforms[1].dx -= 0.95 * transforms[0].dx;
-			//transforms[1].dy -= 0.95 * transforms[0].dy;
-			//transforms[1].da -= 0.95 * transforms[0].da;
 			transforms[1].da *= 0.98;
 			kSwitch *= 0.95;
 		}
@@ -619,9 +612,6 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dy = (double)(1 - roi.y);
 		if (tau_stab > 10) {
 			tau_stab *= 0.9;
-			//transforms[1].dx -= 0.95 * transforms[0].dx;
-			//transforms[1].dy -= 0.95 * transforms[0].dy;
-			//transforms[1].da -= 0.95 * transforms[0].da;
 			transforms[1].da *= 0.98;
 			kSwitch *= 0.95;
 		}
@@ -631,9 +621,6 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[1].dy = (double)(rows - roi.y - roi.height);
 		if (tau_stab > 50) {
 			tau_stab *= 0.9;
-			//transforms[1].dx -= 0.95 * transforms[0].dx;
-			//transforms[1].dy -= 0.95 * transforms[0].dy;
-			//transforms[1].da -= 0.95 * transforms[0].da;
 			transforms[1].da *= 0.98;
 			kSwitch *= 0.95;
 		}
@@ -641,17 +628,9 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (kSwitch < 1.0)
 		tau_stab *= (4.0 + kSwitch) / 5.0;
 
-
 	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx);
 	transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
 	transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
-
-	//transforms[2].dx = 
-	//KF.correct(transforms[1].dx);
-
-	// Применение фильтра Калмана
-	//cv::Mat prediction = KF.predict();
-
 
 	if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
 	{
@@ -659,11 +638,11 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 		transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
 		transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
 	}
-	//transforms[3].dx = (1.0 - 0.7) * transforms[3].dx + 0.7 * abs(transforms[0].dx);
-	//if (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0)
-	//transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
-	//if (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0)
-	//transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+
+
+	velocity[0].dx = velocity[0].dx * 63 / 64 + transforms[0].dx / 64;
+	velocity[0].dy = velocity[0].dy * 63 / 64 + transforms[0].dy / 64;
+	velocity[0].da = velocity[0].da * 63 / 64 + transforms[0].da / 64;
 }
 
 void iirAdaptiveHighPass(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch)//, cv::KalmanFilter& KF)
@@ -906,6 +885,7 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, ve
 	{
 		T = estimateAffine2D(p0, p1);
 
+		//transforms[0] = TransformParam(-(T.at<double>(0, 2) + 3*d.x)/4, -(T.at<double>(1, 2) + 3*d.y)/4, -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
 		transforms[0] = TransformParam(-T.at<double>(0, 2), -T.at<double>(1, 2), -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
 
 	}
