@@ -628,7 +628,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (kSwitch < 1.0)
 		tau_stab *= (4.0 + kSwitch) / 5.0;
 	
-	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx);
+	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx); 
 	transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
 	transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
 

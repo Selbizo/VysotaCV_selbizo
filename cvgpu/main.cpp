@@ -17,7 +17,8 @@ int main()
 	//string videoSource = "http://192.168.0.102:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://10.108.144.71:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
-	int videoSource = 0;
+	string videoSource = "./SourceVideos/treeshd.mp4"; // pad6-100, pixel4-101, pixel-102
+	//int videoSource = 0;
 
 	bool writeVideo = true;
 	bool stabPossible = false;
@@ -33,7 +34,7 @@ int main()
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	int n = 1; //коэффициент сжатия изображения для обработки
+	int n = 1; //коэффициент сжатия изображения для обработки //пока не работает
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
@@ -111,12 +112,13 @@ int main()
 
 	// переменные для фильтра Виннера
 	//cv::Ptr <cuda::Filter> gaussFilter = cuda::createGaussianFilter(CV_8UC3, CV_8UC3, cv::Size(31, 31), 1.0, 1.0);
-	cv::Ptr <cuda::Filter> laplasianFilterGray = cuda::createLaplacianFilter(CV_8UC1, CV_8UC1);
-	cv::Ptr <cuda::Filter> maxBoxFilterGray = cuda::createBoxMaxFilter(CV_8UC1, cv::Size(3, 3));
-	cv::Ptr <cuda::Filter> highPassFilterBGR = cuda::createSobelFilter(CV_8UC3, CV_8UC3, 1, 1, 1, 7);
-	cv::Ptr <cuda::Filter> highPassFilterGray = cuda::createSobelFilter(CV_8UC1, CV_8UC1, 1, 1, 1);
 
-	cv::Ptr <cuda::CannyEdgeDetector> cannyEdgeDet = cuda::createCannyEdgeDetector(10.0, 20.0, 3, false);
+	//cv::Ptr <cuda::Filter> laplasianFilterGray = cuda::createLaplacianFilter(CV_8UC1, CV_8UC1);
+	//cv::Ptr <cuda::Filter> maxBoxFilterGray = cuda::createBoxMaxFilter(CV_8UC1, cv::Size(3, 3));
+	//cv::Ptr <cuda::Filter> highPassFilterBGR = cuda::createSobelFilter(CV_8UC3, CV_8UC3, 1, 1, 1, 7);
+	//cv::Ptr <cuda::Filter> highPassFilterGray = cuda::createSobelFilter(CV_8UC1, CV_8UC1, 1, 1, 1);
+
+	//cv::Ptr <cuda::CannyEdgeDetector> cannyEdgeDet = cuda::createCannyEdgeDetector(10.0, 20.0, 3, false);
 
 	Mat Hw, h, frameGray_wienner;
 	cuda::GpuMat gHw, gH, gFrameGrayWienner;
@@ -217,6 +219,7 @@ int main()
 	int fontFace = FONT_HERSHEY_PLAIN;
 	double fontScale = 1.4;
 	Scalar color(40, 140, 0);
+	Scalar colorRED(0, 40, 140);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat mask_host = Mat::zeros(cv::Size(a / n, b / n), CV_8U);
@@ -230,7 +233,7 @@ int main()
 	Ptr<cuda::DFT> inverseDFT = cuda::createDFT(cv::Size(a, b), DFT_INVERSE | DFT_COMPLEX_INPUT);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создаем объект для записи отклонения в CSV файл~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	std::ofstream outputFile("output.txt");
+	std::ofstream outputFile("./OutputResults/StabOutputs.txt");
 	if (!outputFile.is_open())
 	{
 		cout << "Не удалось открыть файл для записи" << endl;
@@ -252,21 +255,24 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~создание объекта записи видео
 	VideoWriter writer, writerSmall;
 	cv::Mat writerFrame(oldFrame.rows * 2, oldFrame.cols * 2, CV_8UC3), writerFrameSmall(oldFrame.rows, oldFrame.cols, CV_8UC3);
+	int selected_bitrate = 10'000'000;
 	if (writeVideo) {
 		bool isColor = (oldFrame.type() == CV_8UC3);
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~INITIALIZE VIDEOWRITER~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');  // select desired codec (must be available at runtime)
+		//int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');  // select desired codec (must be available at runtime)
+		int codec = VideoWriter::fourcc('D', 'I', 'V', 'X');  // select desired codec (must be available at runtime)
 
 		double fps = 30.0;                          // framerate of the created video stream
-		string filename = "./live_7.avi";             // name of the output video file
-		string filenameSmall = "./live_7_small.avi";  // name of the output video file
+		string filename = "./OutputVideos/TestVideo.avi";             // name of the output video file
+		string filenameSmall = "./OutputVideos/StabilizatedVideo.avi";  // name of the output video file
 
 		writer.open(filename, codec, fps, writerFrame.size(), isColor);
 		if (!writer.isOpened()) {
 			cerr << "Could not open the output video file for write\n";
 			return -1;
 		}
+
 
 		writerSmall.open(filenameSmall, codec, fps, writerFrameSmall.size(), isColor);
 		if (!writerSmall.isOpened()) {
@@ -289,14 +295,19 @@ int main()
 			{
 				if (status[i] && p1[i].x < a * 31 / 32 && p1[i].x > a * 1 / 32 && p1[i].y < b * 31 / 32 && p1[i].y > b * 1 / 16) {
 					//if (status[i] && p1[i].x < a * 3 / 4 && p1[i].x > a * 1 / 7 && p1[i].y < b * 6 / 7 && p1[i].y > b * 1 / 4) {
+					p1[i].x *= n;
+					p1[i].y *= n;
 					p0.push_back(p1[i]); // Выбор точек good_new
 				}
 			}
 
-			if (p1.size() < maxCorners*5/7 && rng.uniform(0.0, 1.0) < 0.2)
+			if (p1.size() < maxCorners * 5 / 7 && rng.uniform(0.0, 1.0) < 0.8)
 			{
 				//p0.push_back(Point2f(a / 2 + rng.uniform(-a / 2, a / 3), b / 2 + rng.uniform(-b/3, b/3)));
-				p0.push_back(Point2f(TStab.at<double>(0, 2) + a/2 + rng.uniform(-a / 5, a / 5), TStab.at<double>(1, 2) + b/2 + rng.uniform(- b / 5, b / 5)));
+				for (uint i = 0; i < abs((int)(velocity[0].dx + velocity[0].dy))*2 + 1; ++i)
+				{
+					p0.push_back(Point2f(transforms[1].dx / 2 + a / 2 + rng.uniform(-a / 3, a / 3), transforms[1].dy / 2 + b / 2 + rng.uniform(-b / 3, b / 3)));
+				}
 			}
 
 			gFrameGray.copyTo(gOldGray);
@@ -351,7 +362,7 @@ int main()
 
 			gFrame.upload(frame);
 
-			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
+			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
 			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
 			cuda::bilateralFilter(gFrameGray, gFrameGray, 7, 3.0, 1.0);
 		}
@@ -377,12 +388,16 @@ int main()
 			gFrame.upload(frame);
 
 			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, 3);
+			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, INTER_CUBIC);
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
 				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, n, kSwitch, a, b, mask_device, stabPossible); //70ms
 				//stabPossible = 0;
+			}
+			else if (frameCnt % 50 == 1 && !stabPossible)
+			{
+
 			}
 			else
 				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, n, kSwitch, a, b, mask_device, stabPossible); //70ms
@@ -395,8 +410,8 @@ int main()
 			//cout << "err.Size() = " << err.Size();
 		}
 		else if (stabPossible) {
-			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, 3);
+			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, INTER_CUBIC);
 			d_pyrLK_sparse->calc(useGray ? gOldGray : gOldFrame, useGray ? gFrameGray : gFrame, gP0, gP1, gStatus);
 			//cuda::multiply(gP1, 4.0, gP1);
 			gP1.download(p1);
@@ -429,7 +444,7 @@ int main()
 				outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx <<"\t" << transforms[1].dy << "\t" << transforms[2].dx << "\t" << transforms[2].dy << "\t" << transforms[3].dx << "\t" << transforms[3].dy << endl;
 				//outputFile << frameCount << "," << round(xDev * 100.0) / 100.0 << "," << round(yDev * 100.0) / 100.0 << "," << round(transforms[1].dx * 100.0) / 100.0 << "," << round(transforms[1].dy * 100.0) / 100.0 << endl;
 			}
-			//transforms[2].getTransform(TStab, a, b, c, atan_ba, framePart);
+			
 
 			// Винеровская фильтрация
 			if (wienner && kSwitch > 0.01)
@@ -482,7 +497,7 @@ int main()
 
 			gFrameCrop = gFrameStabilized(roi); 
 
-			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, 3);
+			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
 			gFrameCrop.download(croppedImg);
 			endPing = clock();
 
@@ -491,11 +506,18 @@ int main()
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
 				gFrame.download(frame);
 				
 				frame.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
 				croppedImg.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
+
+				if (p0.size() > 0)
+					for (uint i = 0; i < p0.size(); i++)
+						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1);
+								
+				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(a * framePart / 2, 0), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
+				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(0, b * framePart / 2), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
 
 				cv::putText(writerFrame, format("It's OK. WnrFltr Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), 
 					textOrg[0], fontFace, fontScale, color, 2, 8, false);
@@ -512,24 +534,15 @@ int main()
 				cv::putText(writerFrame, format("Filter time[3][4]= %3.0f frames, filter power = %1.2f", tauStab, kSwitch), 
 					textOrg[6], fontFace, fontScale/1.2, color, 2, 8, false);
 				cv::putText(writerFrame, format("Crop[w][s] = %2.2f, %d Current corners of %d.", 1 / framePart, gP0.cols, maxCorners), 
-					textOrg[7], fontFace, fontScale, Scalar(120, 60, 255), 2, 8, false);
+					textOrg[7], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("FPS = %2.1f, Ping = %1.3f.", 1 / seconds, secondsPing), 
 					textOrg[8], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Image resolution: %3.0f x %3.0f.", a, b), 
 					textOrg[9], fontFace, fontScale / 1.2, color, 2, 8, false);
-
-				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.5, Scalar(255, 20, 200), 2, 8, false);
-				cv::putText(writerFrame, format("Crop Stab OFF"), textOrgCrop[9], fontFace, fontScale * 1.5, Scalar(30, 30, 200), 2, 8, false);
-				cv::putText(writerFrame, format("Crop Stab ON"), textOrgStab[9], fontFace, fontScale * 1.5, Scalar(20, 200, 20), 2, 8, false);
-				//cv::putText(writerFrame, format("atan: %3.3f x %3.3f.", framePart * (a - c * cos(atan(b / a) - transforms[1].da)) / 2, framePart * (b - c * sin(atan(b / a) - transforms[1].da)) / 2), textOrgStab[7], fontFace, fontScale / 1.2, color, 2, 8, false);
-				
-				if (p0.size() > 0)
-					for (uint i = 0; i < p0.size(); i++)
-						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1);
+				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.3, color, 2, 8, false);
+				cv::putText(writerFrame, format("Without Stab"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("Stab ON"), textOrgStab[0], fontFace, fontScale * 1.3, color, 2, 8, false);
 								
-				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(a * framePart / 2, 0), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
-				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(0, b * framePart / 2), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
-				
 				cv::imshow("Writed", writerFrame);
 				writer.write(writerFrame);
 				writerSmall.write(croppedImg);
@@ -560,13 +573,13 @@ int main()
 
 			gFrameCrop = gFrameStabilized(roi);
 
-			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, 3);
+			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
 			gFrameCrop.download(croppedImg);
 			//endPing = clock();
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, 3);
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
 				gFrame.download(frame);
 
 				frame.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
@@ -574,14 +587,41 @@ int main()
 				croppedImg.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
 
 
-				cv::putText(writerFrame, format("3) Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Wienner[1] %d, thread[t] %d, stab %d", wienner, threadwiener, stabPossible), textOrg[1], fontFace, fontScale, Scalar(0, 0, 255), 2, 8, false);
-				cv::putText(writerFrame, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
-					textOrg[2], fontFace, fontScale, Scalar(0, 0, 255), 2, 8, false);
-				cv::putText(writerFrame, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Crop[w][s] = %2.1f ,%d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), textOrg[6], fontFace, fontScale, color, 2, 8, false);
+
+				cv::putText(writerFrame, format("NOT GOOD. WnrFltr Q[5][6] = % 2.1f, SNR[7][8] = % 2.1f", Q, 1 / nsr),
+					textOrg[0], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wienner, threadwiener, stabPossible),
+					textOrg[1], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("[X Y Roll] %2.2f %2.2f %2.2f]", transforms[1].dx, transforms[1].dy, transforms[1].da* RAD_TO_DEG),
+					textOrg[2], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("[dX dY dRoll] %2.2f %2.2f %2.2f]", transforms[0].dx, transforms[0].dy, transforms[0].da),
+					textOrg[3], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("[skoX skoY skoRoll] %2.2f %2.2f %2.2f]", transforms[3].dx, transforms[3].dy, transforms[3].da),
+					textOrg[4], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("[vX vY vRoll] %2.2f %2.2f %2.2f]", velocity[0].dx, velocity[0].dy, velocity[0].da),
+					textOrg[5], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("Filter time[3][4]= %3.0f frames, filter power = %1.2f", tauStab, kSwitch),
+					textOrg[6], fontFace, fontScale / 1.2, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("Crop[w][s] = %2.2f, %d Current corners of %d.", 1 / framePart, gP0.cols, maxCorners),
+					textOrg[7], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("FPS = %2.1f, Ping = %1.3f.", 1 / seconds, secondsPing),
+					textOrg[8], fontFace, fontScale, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("Image resolution: %3.0f x %3.0f.", a, b),
+					textOrg[9], fontFace, fontScale / 1.2, colorRED, 2, 8, false);
+
+				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.3, color, 2, 8, false);
+				cv::putText(writerFrame, format("Without Stab"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
+				cv::putText(writerFrame, format("Stab error"), textOrgStab[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
+
+
+				//cv::putText(writerFrame, format("3) Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
+				//cv::putText(writerFrame, format("Wienner[1] %d, thread[t] %d, stab %d", wienner, threadwiener, stabPossible), textOrg[1], fontFace, fontScale, Scalar(0, 0, 255), 2, 8, false);
+				//cv::putText(writerFrame, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
+				//	textOrg[2], fontFace, fontScale, Scalar(0, 0, 255), 2, 8, false);
+				//cv::putText(writerFrame, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
+				//cv::putText(writerFrame, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
+				//cv::putText(writerFrame, format("Crop[w][s] = %2.1f ,%d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
+				//cv::putText(writerFrame, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), textOrg[6], fontFace, fontScale, color, 2, 8, false);
 
 				cv::imshow("Writed", writerFrame);
 				writer.write(writerFrame);
