@@ -364,3 +364,6 @@ FodyWeavers.xsd
 *.avi
 /cvgpu/output.txt
 *.jpg
+*.mp4
+*.zip
+*.txt
