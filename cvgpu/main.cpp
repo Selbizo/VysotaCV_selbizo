@@ -11,7 +11,7 @@ int main()
 	//string videoSource = "http://192.168.0.102:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://10.108.144.71:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
-	string videoSource = "./SourceVideos/treeshd.mp4"; // pad6-100, pixel4-101, pixel-102
+	string videoSource = "./SourceVideos/trees4k.mp4"; // pad6-100, pixel4-101, pixel-102
 	//int videoSource = 0;
 
 	bool writeVideo = true;
@@ -22,28 +22,27 @@ int main()
 	RNG rng;
 	for (int i = 0; i < 1000; i++)
 	{
-		int b = rng.uniform(88, 188);
-		int g = rng.uniform(80, 130);
-		int r = rng.uniform(165, 255);
+		unsigned short b = rng.uniform(120, 255);
+		unsigned short g = rng.uniform( 60, 100);
+		unsigned short r = rng.uniform(165, 225);
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	//int     = 2; //коэффициент сжатия изображения для обработки //пока не работает
+	const int compression = 2; //коэффициент сжатия изображения для обработки //пока не работает
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
 
 	int	srcType = CV_8UC1;
-	int maxCorners = 400   ;      //100/n
-	double qualityLevel = 0.003; //0.0001
-	double minDistance = 6.0   + 2.0; //8.0
-	int blockSize = 35   + 10; //45 80 максимальное значение окна
+	int maxCorners = 400 / compression; //100/n
+	double qualityLevel = 0.003 / compression; //0.0001
+	double minDistance = 6.0 /compression + 2.0; //8.0
+	int blockSize = 35 / compression + 10; //45 80 максимальное значение окна
 	bool useHarrisDetector = true;
 	double harrisK = qualityLevel;
 
 	Ptr<cuda::CornersDetector > d_features = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
 		maxCorners, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
-
 
 	// переменные для оптического потока
 	bool useGray = true;
@@ -55,32 +54,23 @@ int main()
 		cv::Size(winSize, winSize), maxLevel, iters);
 
 	//переменные для запоминания кадров и характерных точек
-	Mat frame, frameGray, temp;
+	Mat frame, gray, temp, compressed, oldCompressed;
 	Mat oldFrame, oldGray;
 
 	vector<Point2f> p0, p1, good_new;
 	cuda::GpuMat gP0, gP1;
-	cuda::GpuMat gFrame, gFrameGray;
-	cuda::GpuMat gOldFrame, gOldGray;
-	cuda::GpuMat gStatus, gErr;
 
 	Point2f d = Point2f(0.0f, 0.0f);
-	Mat T;
-	Mat TStab(2, 3, CV_64F);
+	Mat T, TStab(2, 3, CV_64F);
+	//Mat T3d, T3dStab(3, 4, CV_64F);
+	cuda::GpuMat gT, gTStab(2, 3, CV_64F);
 
-	Mat T3d;
-	Mat T3dStab(3, 4, CV_64F);
 
-	Mat frameStabilized, frame_out;
-
-	cuda::GpuMat gT;
-	cuda::GpuMat gTStab(2, 3, CV_64F);
-	cuda::GpuMat gFrameStabilized, gFrameOut;
-
+	Mat frameStabilized;
+	cuda::GpuMat gStatus, gErr;
 	double tauStab = 100.0;
 	double kSwitch = 0.001;
 	double framePart = 0.8;
-	Rect roi;
 
 	vector <TransformParam> transforms(4);
 	for (int i = 0; i < 4;i++)
@@ -99,13 +89,9 @@ int main()
 
 	//для гомографии
 
-	// Траектория камеры
-	vector<Mat> homoTransforms;
-
-
 	// переменные для фильтра Виннера
-	Mat Hw, h, frameGray_wiener;
-	cuda::GpuMat gHw, gH, gFrameGrayWiener;
+	Mat Hw, h, gray_wiener;
+	cuda::GpuMat gHw, gH, gGrayWiener;
 
 	bool wiener = false;
 	bool threadwiener = false;
@@ -136,7 +122,7 @@ int main()
 	clock_t endPing = clock();
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Захват первого кадра ~~~~~~~~~~~~~~~~~~~~~~~~~~~//
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~//
+	//~~~~~~~~~~~~~~~~~~~~~~для ситывания параметров видеопотока~~~~~~~~~~~~~~~~~//
 
 	VideoCapture capture(videoSource);
 
@@ -152,25 +138,39 @@ int main()
 
 	capture >> oldFrame;
 
-	const double a = oldFrame.cols  ;
-	const double b = oldFrame.rows  ;
+	const int a = oldFrame.cols;
+	const int b = oldFrame.rows;
 	const double c = sqrt(a * a + b * b);
 	const double atan_ba = atan2(b, a);
 
+	cuda::GpuMat gFrameStabilized;
+
+	cuda::GpuMat gFrame(a,b, CV_8UC3), 
+		gGray(a/compression, b / compression, CV_8UC1), 
+		gCompressed(a / compression, b / compression, CV_8UC3);
+
+	cuda::GpuMat gOldFrame(a, b, CV_8UC3), 
+		gOldGray(a / compression, b / compression, CV_8UC1), 
+		gOldCompressed(a / compression, b / compression, CV_8UC3);
+	cuda::GpuMat gToShow(a, b, CV_8UC3);
+
+	Rect roi;
 	roi.x = a * ((1.0 - framePart) / 2.0);
 	roi.y = b * ((1.0 - framePart) / 2.0);
 	roi.width = a * framePart;
 	roi.height = b * framePart;
 
+
+
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Для отображения надписей на кадре~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	setlocale(LC_ALL, "RU");
-	vector <Point> textOrg(10);
-	vector <Point> textOrgCrop(10);
-	vector <Point> textOrgStab(10);
-	vector <Point> textOrgOrig(10);
+	vector <Point> textOrg(20);
+	vector <Point> textOrgCrop(20);
+	vector <Point> textOrgStab(20);
+	vector <Point> textOrgOrig(20);
 	if (writeVideo)
 	{ 
-		for (int i = 0; i < 10; i++)
+		for (int i = 0; i < 20; i++)
 		{
 			textOrg[i].x = 5 + a;
 			textOrg[i].y = 5 + 32 * (i + 1) + b;
@@ -186,7 +186,7 @@ int main()
 		}
 	}
 	else {
-		for (int i = 0; i < 10; i++)
+		for (int i = 0; i < 20; i++)
 		{
 			textOrg[i].x = 20;
 			textOrg[i].y = 100 + 40 * (i + 1);
@@ -202,8 +202,10 @@ int main()
 	Scalar colorBLUE(239, 107, 23);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	Mat mask_host = Mat::zeros(cv::Size(a, b), CV_8U);
-	rectangle(mask_host, Rect(a * (1.0 - 0.8) / 2, b * (1.0 - 0.8) / 2, a * 0.8, b * 0.8), Scalar(255), FILLED); // Прямоугольная маска
+	//Mat mask_host = Mat::zeros(cv::Size(a, b), CV_8U); //orig
+	Mat mask_host = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
+	rectangle(mask_host, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
+		Scalar(255), FILLED); // Прямоугольная маска
 	cuda::GpuMat mask_device(mask_host);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создаем GpuMat для мнимой части фильтра Винера~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -225,35 +227,28 @@ int main()
 	outputFile << "FrameNumber\tdx\tdy\tX\tY\ttr2x\ttr2y\ttr3x\ttr3y" << endl;
 	//outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx << "\t" << transforms[1].dy << transforms[2].dx << "\t" << transforms[2].dy << transforms[3].dx << "\t" << transforms[3].dy << endl;
 	int frameCount = 0;
-
-	while (true) {
-		initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms,    kSwitch, a, b, mask_device, stabPossible);
-		if (stabPossible)
-			break;
-	}
 	
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~создание объекта записи видео
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~СОЗДАНИЕ ОБЪЕКТА КАЛЛАСА ЗАПИСИ ВИДЕО
 	VideoWriter writer, writerSmall;
 	cv::Mat writerFrame(oldFrame.rows * 2, oldFrame.cols * 2, CV_8UC3), writerFrameSmall(oldFrame.rows, oldFrame.cols, CV_8UC3);
 	cv::Mat writerFrameToShow;
-	int selected_bitrate = 10'000'000;
+
 	if (writeVideo) {
 		bool isColor = (oldFrame.type() == CV_8UC3);
 		//~~~~~~~~~~~~~~~~~~~~~~~~~~~INITIALIZE VIDEOWRITER~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-		//int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');  // select desired codec (must be available at runtime)
-		int codec = VideoWriter::fourcc('D', 'I', 'V', 'X');  // select desired codec (must be available at runtime)
+		//int codec = VideoWriter::fourcc('M', 'J', 'P', 'G'); // select desired codec (must be available at runtime)
+		int codec = VideoWriter::fourcc('D', 'I', 'V', 'X'); // select desired codec (must be available at runtime)
 
-		double fps = 30.0;                          // framerate of the created video stream
-		string filename = "./OutputVideos/TestVideo.avi";             // name of the output video file
-		string filenameSmall = "./OutputVideos/StabilizatedVideo.avi";  // name of the output video file
+		double fps = 30.0; // framerate of the created video stream
+		string filename = "./OutputVideos/TestVideo.avi"; // name of the output video file
+		string filenameSmall = "./OutputVideos/StabilizatedVideo.avi"; // name of the output video file
 
 		writer.open(filename, codec, fps, writerFrame.size(), isColor);
 		if (!writer.isOpened()) {
 			cerr << "Could not open the output video file for write\n";
 			return -1;
 		}
-
 
 		writerSmall.open(filenameSmall, codec, fps, writerFrameSmall.size(), isColor);
 		if (!writerSmall.isOpened()) {
@@ -262,36 +257,41 @@ int main()
 		}
 	}
 
-	while (true) {
-		//нужно только для iirAdaptive
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Начало работы алгоритма~~~~~~~~~~~~~~~~~~~~~~~~//
 
-		//readFrameFromCapture(capture, frame);
+	while (true) {
+		initFirstFrame(capture, oldFrame, gOldFrame, gOldCompressed, gOldGray, 
+			gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
+			kSwitch, a, b, compression , mask_device, stabPossible);
+		if (stabPossible)
+			break;
+	}
+
+	while (true) {
 		++frameCount;
 		secondsPing = 0.95 * secondsPing + 0.05 * (double)(endPing - startPing) / CLOCKS_PER_SEC;
 
-		//std::thread readFromCapThread(readFrameFromCapture, &capture, &frame);
 		if (stabPossible) {
 			p0.clear();
 			for (uint i = 0; i < p1.size(); ++i)
 			{
 				if (status[i] && p1[i].x < a * 31 / 32 && p1[i].x > a * 1 / 32 && p1[i].y < b * 31 / 32 && p1[i].y > b * 1 / 16) {
-					//if (status[i] && p1[i].x < a * 3 / 4 && p1[i].x > a * 1 / 7 && p1[i].y < b * 6 / 7 && p1[i].y > b * 1 / 4) {
-					p1[i].x     ;
-					p1[i].y     ;
+					p1[i].x;
+					p1[i].y;
 					p0.push_back(p1[i]); // Выбор точек good_new
 				}
 			}
 
 			if (p1.size() < maxCorners * 5 / 7 && rng.uniform(0.0, 1.0) < 0.8)
 			{
-				//p0.push_back(Point2f(a / 2 + rng.uniform(-a / 2, a / 3), b / 2 + rng.uniform(-b/3, b/3)));
 				for (uint i = 0; i < abs((int)(velocity[0].dx + velocity[0].dy))*2 + 1; ++i)
 				{
-					p0.push_back(Point2f(transforms[1].dx / 2 + a / 2 + rng.uniform(-a / 3, a / 3), transforms[1].dy / 2 + b / 2 + rng.uniform(-b / 3, b / 3)));
+					p0.push_back(Point2f(transforms[1].dx/compression / 2 + a / compression/2 + rng.uniform(-a / compression / 4, a / compression / 4),
+						transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4)));
 				}
 			}
 
-			gFrameGray.copyTo(gOldGray);
+			gGray.copyTo(gOldGray);
 			gP0.upload(p0);
 			if (kSwitch < 0.01)
 				kSwitch = 0.01;
@@ -300,9 +300,7 @@ int main()
 				kSwitch *= 1.04;
 				kSwitch += 0.005;
 
-			}
-
-			else if (kSwitch > 1.0)
+			}else if (kSwitch > 1.0)
 				kSwitch = 1.0;
 
 			capture >> frame; //нужно для .upload(frame)
@@ -328,73 +326,63 @@ int main()
 
 		if (writeVideo && stabPossible) {
 			//cv::putText(frame, format("Raw Video Stream"), textOrg[9], fontFace, fontScale, color, 2, 8, false);
-			rectangle(writerFrame, Rect(a, b, a, b), Scalar(0, 0, 0), FILLED); // Прямоугольная маска
+			rectangle(writerFrame, Rect(a, b, a, b), Scalar(50, 50, 50), FILLED); // покрасили в один цвет
 			frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 		}
 		frameCnt++;
 
 		if (stabPossible) {
-
-			if (wiener == false && p0.size() > 0 && 0)
-			{
-				for (uint i = 0; i < p0.size(); i++)
-					circle(frame, p1[i], 4, colors[i], -1);
-			}
-
 			gFrame.upload(frame);
 
-			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
-			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
-			cuda::bilateralFilter(gFrameGray, gFrameGray, 7, 3.0, 1.0);
+			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_CUBIC);
+			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
+			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
 		}
 
 		if ((gP0.cols < maxCorners * 1 / 5) || !stabPossible)
 		{
-			//cerr << "Unable to find enough corners, nessessary " << maxCorners / 4 << "." << endl;
-
 			if (maxCorners > 300)
 				maxCorners *= 0.95;
 			if (gP0.cols < maxCorners * 1 / 4 && stabPossible)
 				d_features->setMaxCorners(maxCorners);
 			p0.clear();
 			p1.clear();
+
 			gOldGray.release();
-			//if (stabPossible)
-			//{
+			
 			capture >> frame;
+
 			if (!stabPossible) {
 				rectangle(writerFrame, Rect(a, b, a, b), Scalar(0, 0, 0), FILLED); // Прямоугольная маска
 				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 			}
 			gFrame.upload(frame);
+			gCompressed.release();
+			//gGray.release();
+			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_CUBIC);
 
-			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a   , b   ), 0.0, 0.0, INTER_CUBIC);
+			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
+			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
-				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms,    kSwitch, a, b, mask_device, stabPossible); //70ms
-				//stabPossible = 0;
-			}
-			else if (frameCnt % 50 == 1 && !stabPossible)
-			{
-
-			}
+				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gOldCompressed, 
+					gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
+					kSwitch, a, b, compression , mask_device, stabPossible); //70ms
+			} 
 			else
-				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms,    kSwitch, a, b, mask_device, stabPossible); //70ms
+				initFirstFrameZero(oldFrame, oldCompressed, gOldFrame, gOldGray, gOldCompressed, 
+					gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
+					kSwitch, a, b, compression , mask_device, stabPossible); //70ms
 
 			if (stabPossible) {
-				d_pyrLK_sparse->calc(gOldGray, gFrameGray, gP0, gP1, gStatus, gErr);
+				d_pyrLK_sparse->calc(gOldGray, gCompressed, gP0, gP1, gStatus, gErr);
 				gP1.download(p1);
 				gErr.download(err);
 			}
-			//cout << "err.Size() = " << err.Size();
 		}
 		else if (stabPossible) {
-			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a   , b   ), 0.0, 0.0, INTER_CUBIC);
-			d_pyrLK_sparse->calc(useGray ? gOldGray : gOldFrame, useGray ? gFrameGray : gFrame, gP0, gP1, gStatus);
-			//cuda::multiply(gP1, 4.0, gP1);
+			d_pyrLK_sparse->calc(useGray ? gOldGray : gOldFrame, useGray ? gGray : gFrame, gP0, gP1, gStatus);
 			gP1.download(p1);
 		}
 
@@ -407,14 +395,8 @@ int main()
 		}
 		if (stabPossible) {
 			download(gStatus, status);
-			// условно gFrameOpticalFlow.join();
-			getBiasAndRotation(p0, p1, d, transforms, T); //уже можно делать Винеровскую фильтрацию
-
-			
-
-
-
-			iirAdaptive(transforms, tauStab, roi, gFrame.cols, gFrame.rows, kSwitch, velocity);
+			getBiasAndRotation(p0, p1, d, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
+			iirAdaptive(transforms, tauStab, roi, a, b, kSwitch, velocity);
 			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart);
 
 			if (T.rows == 2 && T.cols == 3)
@@ -422,11 +404,10 @@ int main()
 				double xDev = T.at<double>(0, 2);
 				double yDev = T.at<double>(1, 2);
 				// Запись отклонения в CSV файл
-				outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx <<"\t" << transforms[1].dy << "\t" << transforms[2].dx << "\t" << transforms[2].dy << "\t" << transforms[3].dx << "\t" << transforms[3].dy << endl;
-				//outputFile << frameCount << "," << round(xDev * 100.0) / 100.0 << "," << round(yDev * 100.0) / 100.0 << "," << round(transforms[1].dx * 100.0) / 100.0 << "," << round(transforms[1].dy * 100.0) / 100.0 << endl;
+				outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx <<"\t" << transforms[1].dy << "\t" 
+					<< transforms[2].dx << "\t" << transforms[2].dy << "\t" << transforms[3].dx << "\t" << transforms[3].dy << endl;
 			}
 			
-
 			// Винеровская фильтрация
 			if (wiener && kSwitch > 0.01)
 			{
@@ -477,17 +458,16 @@ int main()
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b));
 
 			gFrameCrop = gFrameStabilized(roi); 
-
-			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, INTER_LINEAR);
 			gFrameCrop.download(croppedImg);
-			endPing = clock();
-
 			
+			endPing = clock();
+						
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_LINEAR);
 				gFrame.download(frame);
 				
 				frame.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
@@ -495,10 +475,10 @@ int main()
 
 				if (p0.size() > 0)
 					for (uint i = 0; i < p0.size(); i++)
-						circle(writerFrame, cv::Point2f(p1[i].x + a, p1[i].y), 4, colors[i], -1);
+						circle(writerFrame, cv::Point2f(p1[i].x*compression + a, p1[i].y*compression), 6, colors[i], -1);
 								
-				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(a * framePart / 2, 0), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
-				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(0, b * framePart / 2), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 2);
+				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(a * framePart / 2, 0), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 10);
+				cv::ellipse(writerFrame, cv::Point2f(-transforms[1].dx + a + a / 2, -transforms[1].dy + b / 2), cv::Size(0, b * framePart / 2), 0.0 - 0.0*transforms[1].da * RAD_TO_DEG, 0, 360, Scalar(20, 200, 10), 10);
 
 				cv::putText(writerFrame, format("It's OK. WnrFltr Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), 
 					textOrg[0], fontFace, fontScale, color, 2, 8, false);
@@ -518,7 +498,7 @@ int main()
 					textOrg[7], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("FPS = %2.1f, Ping = %1.3f.", 1 / seconds, secondsPing), 
 					textOrg[8], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Image resolution: %3.0f x %3.0f.", a, b), 
+				cv::putText(writerFrame, format("Image resolution: %d x %d.", a, b), 
 					textOrg[9], fontFace, fontScale / 1.2, color, 2, 8, false);
 				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.3, color, 2, 8, false);
 				cv::putText(writerFrame, format("Without Stab"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
@@ -526,7 +506,7 @@ int main()
 								
 				writer.write(writerFrame);
 				writerSmall.write(croppedImg);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_LINEAR);
 				cv::imshow("Writed", writerFrameToShow);
 			}
 			else {
@@ -536,7 +516,6 @@ int main()
 					textOrg[2], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
-				//cv::putText(croppedImg, format("Cut-off[w][s] 1/%2.2f, %d Corners of %d.", framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), textOrg[6], fontFace, fontScale, color, 2, 8, false);
 				
@@ -568,8 +547,6 @@ int main()
 
 				croppedImg.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
 
-
-
 				cv::putText(writerFrame, format("NOT GOOD. WnrFltr Q[5][6] = % 2.1f, SNR[7][8] = % 2.1f", Q, 1 / nsr),
 					textOrg[0], fontFace, fontScale, colorRED, 2, 8, false);
 				cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wiener, threadwiener, stabPossible),
@@ -588,7 +565,7 @@ int main()
 					textOrg[7], fontFace, fontScale, colorRED, 2, 8, false);
 				cv::putText(writerFrame, format("FPS = %2.1f, Ping = %1.3f.", 1 / seconds, secondsPing),
 					textOrg[8], fontFace, fontScale, colorRED, 2, 8, false);
-				cv::putText(writerFrame, format("Image resolution: %3.0f x %3.0f.", a, b),
+				cv::putText(writerFrame, format("Image resolution: %d x %d.", a, b),
 					textOrg[9], fontFace, fontScale / 1.2, colorRED, 2, 8, false);
 
 				cv::putText(writerFrame, format("Original video"), textOrgOrig[0], fontFace, fontScale * 1.3, color, 2, 8, false);
@@ -597,7 +574,7 @@ int main()
 
 				writer.write(writerFrame);
 				writerSmall.write(croppedImg);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_LINEAR);
 				cv::imshow("Writed", writerFrameToShow);
 
 			}
@@ -617,11 +594,9 @@ int main()
 		}
 
 		// Ожидание внешних команд управления с клавиатуры
-
 		int keyboard = waitKey(1);
 		if (keyResponse(keyboard, frame, croppedImg, a, b, nsr, wiener, threadwiener, Q, tauStab, framePart, roi))
-			break;
-		
+			break;		
 	}
 	outputFile.close();
 	capture.release();
@@ -640,122 +615,122 @@ int main()
 //
 //class DroneSpeedEstimator {
 //private:
-//    // CUDA объекты
-//    Ptr<cuda::ORB> orb;
-//    Ptr<cuda::DescriptorMatcher> matcher;
-//    cuda::GpuMat prevFrame, prevGray;
-//    vector<Point2f> prevPoints;
-//    double focalLength;  // Фокусное расстояние в пикселях
-//    double altitude;     // Высота в метрах
-//    double scaleFactor;  // Масштабный коэффициент (пиксели/метр)
-//    high_resolution_clock::time_point prevTime;
+// // CUDA объекты
+// Ptr<cuda::ORB> orb;
+// Ptr<cuda::DescriptorMatcher> matcher;
+// cuda::GpuMat prevFrame, prevGray;
+// vector<Point2f> prevPoints;
+// double focalLength; // Фокусное расстояние в пикселях
+// double altitude; // Высота в метрах
+// double scaleFactor; // Масштабный коэффициент (пиксели/метр)
+// high_resolution_clock::time_point prevTime;
 //
 //public:
-//    DroneSpeedEstimator(double focal, double alt)
-//        : focalLength(focal), altitude(alt) {
-//        // Инициализация детектора ORB на GPU
-//        orb = cuda::ORB::create(1000);
-//        matcher = cuda::DescriptorMatcher::createBFMatcher(NORM_HAMMING);
+// DroneSpeedEstimator(double focal, double alt)
+// : focalLength(focal), altitude(alt) {
+// // Инициализация детектора ORB на GPU
+// orb = cuda::ORB::create(1000);
+// matcher = cuda::DescriptorMatcher::createBFMatcher(NORM_HAMMING);
 //
-//        // Расчет масштабного коэффициента
-//        scaleFactor = focalLength / altitude;
-//        prevTime = high_resolution_clock::now();
-//    }
+// // Расчет масштабного коэффициента
+// scaleFactor = focalLength / altitude;
+// prevTime = high_resolution_clock::now();
+// }
 //
-//    double estimateSpeed(const Mat& frame) {
-//        auto currTime = high_resolution_clock::now();
-//        double timeDelta = duration_cast<milliseconds>(currTime - prevTime).count() / 1000.0;
-//        prevTime = currTime;
+// double estimateSpeed(const Mat& frame) {
+// auto currTime = high_resolution_clock::now();
+// double timeDelta = duration_cast<milliseconds>(currTime - prevTime).count() / 1000.0;
+// prevTime = currTime;
 //
-//        cuda::GpuMat d_frame, d_gray, d_keypoints, d_descriptors;
-//        vector<KeyPoint> keypoints;
-//        Mat descriptors;
+// cuda::GpuMat d_frame, d_gray, d_keypoints, d_descriptors;
+// vector<KeyPoint> keypoints;
+// Mat descriptors;
 //
-//        // Загрузка кадра на GPU
-//        d_frame.upload(frame);
-//        cuda::cvtColor(d_frame, d_gray, COLOR_BGR2GRAY);
+// // Загрузка кадра на GPU
+// d_frame.upload(frame);
+// cuda::cvtColor(d_frame, d_gray, COLOR_BGR2GRAY);
 //
-//        // Первый кадр - инициализация
-//        if (prevPoints.empty()) {
-//            orb->detectAndComputeAsync(d_gray, noArray(), d_keypoints, d_descriptors);
-//            orb->convert(d_keypoints, keypoints);
-//            KeyPoint::convert(keypoints, prevPoints);
-//            prevGray = d_gray.clone();
-//            return 0.0;
-//        }
+// // Первый кадр - инициализация
+// if (prevPoints.empty()) {
+// orb->detectAndComputeAsync(d_gray, noArray(), d_keypoints, d_descriptors);
+// orb->convert(d_keypoints, keypoints);
+// KeyPoint::convert(keypoints, prevPoints);
+// prevGray = d_gray.clone();
+// return 0.0;
+// }
 //
-//        // Находим ключевые точки в текущем кадре
-//        orb->detectAndComputeAsync(d_gray, noArray(), d_keypoints, d_descriptors);
-//        orb->convert(d_keypoints, keypoints);
+// // Находим ключевые точки в текущем кадре
+// orb->detectAndComputeAsync(d_gray, noArray(), d_keypoints, d_descriptors);
+// orb->convert(d_keypoints, keypoints);
 //
-//        vector<Point2f> currPoints;
-//        KeyPoint::convert(keypoints, currPoints);
+// vector<Point2f> currPoints;
+// KeyPoint::convert(keypoints, currPoints);
 //
-//        // Находим соответствия точек
-//        vector<DMatch> matches;
-//        matcher->match(d_descriptors, matches);
+// // Находим соответствия точек
+// vector<DMatch> matches;
+// matcher->match(d_descriptors, matches);
 //
-//        // Фильтрация хороших соответствий
-//        vector<Point2f> goodPrev, goodCurr;
-//        for (size_t i = 0; i < matches.size(); i++) {
-//            if (matches[i].distance < 25.0) {
-//                goodPrev.push_back(prevPoints[matches[i].queryIdx]);
-//                goodCurr.push_back(currPoints[matches[i].trainIdx]);
-//            }
-//        }
+// // Фильтрация хороших соответствий
+// vector<Point2f> goodPrev, goodCurr;
+// for (size_t i = 0; i < matches.size(); i++) {
+// if (matches[i].distance < 25.0) {
+// goodPrev.push_back(prevPoints[matches[i].queryIdx]);
+// goodCurr.push_back(currPoints[matches[i].trainIdx]);
+// }
+// }
 //
-//        // Рассчитываем среднее смещение точек
-//        double totalDisplacement = 0.0;
-//        int validPoints = 0;
+// // Рассчитываем среднее смещение точек
+// double totalDisplacement = 0.0;
+// int validPoints = 0;
 //
-//        for (size_t i = 0; i < goodPrev.size(); i++) {
-//            double dx = goodCurr[i].x - goodPrev[i].x;
-//            double dy = goodCurr[i].y - goodPrev[i].y;
-//            totalDisplacement += sqrt(dx * dx + dy * dy);
-//            validPoints++;
-//        }
+// for (size_t i = 0; i < goodPrev.size(); i++) {
+// double dx = goodCurr[i].x - goodPrev[i].x;
+// double dy = goodCurr[i].y - goodPrev[i].y;
+// totalDisplacement += sqrt(dx * dx + dy * dy);
+// validPoints++;
+// }
 //
-//        if (validPoints == 0) return 0.0;
+// if (validPoints == 0) return 0.0;
 //
-//        // Среднее смещение в пикселях
-//        double meanDisplacement = totalDisplacement / validPoints;
+// // Среднее смещение в пикселях
+// double meanDisplacement = totalDisplacement / validPoints;
 //
-//        // Переводим смещение в метры и вычисляем скорость
-//        double groundDisplacement = meanDisplacement / scaleFactor; // в метрах
-//        double speed = groundDisplacement / timeDelta;             // м/с
+// // Переводим смещение в метры и вычисляем скорость
+// double groundDisplacement = meanDisplacement / scaleFactor; // в метрах
+// double speed = groundDisplacement / timeDelta; // м/с
 //
-//        // Обновляем данные для следующего кадра
-//        prevGray = d_gray.clone();
-//        prevPoints = currPoints;
+// // Обновляем данные для следующего кадра
+// prevGray = d_gray.clone();
+// prevPoints = currPoints;
 //
-//        return speed;
-//    }
+// return speed;
+// }
 //};
 //
 //int main() {
-//    // Параметры камеры (пример для DJI Phantom 4 Pro)
-//    double focalLengthPx = 3820;  // Фокусное расстояние в пикселях
-//    double altitude = 50.0;       // Высота полета в метрах
+// // Параметры камеры (пример для DJI Phantom 4 Pro)
+// double focalLengthPx = 3820; // Фокусное расстояние в пикселях
+// double altitude = 50.0; // Высота полета в метрах
 //
-//    DroneSpeedEstimator speedEstimator(focalLengthPx, altitude);
+// DroneSpeedEstimator speedEstimator(focalLengthPx, altitude);
 //
-//    VideoCapture cap(0);
-//    if (!cap.isOpened()) {
-//        cerr << "Error opening video file" << endl;
-//        return -1;
-//    }
+// VideoCapture cap(0);
+// if (!cap.isOpened()) {
+// cerr << "Error opening video file" << endl;
+// return -1;
+// }
 //
-//    Mat frame;
-//    while (cap.read(frame)) {
-//        double speed = speedEstimator.estimateSpeed(frame);
-//        /*cout << "Estimated speed: " << speed << " m/s ("
-//            << speed * 3.6 << " km/h)" << endl;*/
+// Mat frame;
+// while (cap.read(frame)) {
+// double speed = speedEstimator.estimateSpeed(frame);
+// /*cout << "Estimated speed: " << speed << " m/s ("
+// << speed * 3.6 << " km/h)" << endl;*/
 //
-//        putText(frame, format("Speed: %.2f m/s", speed),
-//            Point(20, 40), FONT_HERSHEY_SIMPLEX, 1, Scalar(0, 255, 0), 2);
-//        imshow("Drone View", frame);
-//        if (waitKey(1) == 27) break;
-//    }
+// putText(frame, format("Speed: %.2f m/s", speed),
+// Point(20, 40), FONT_HERSHEY_SIMPLEX, 1, Scalar(0, 255, 0), 2);
+// imshow("Drone View", frame);
+// if (waitKey(1) == 27) break;
+// }
 //
-//    return 0;
+// return 0;
 //}

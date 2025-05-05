@@ -785,18 +785,19 @@ void GfixBorder(cuda::GpuMat& frame_stabilized, Rect& roi)
 }
 
 
-void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0,
+void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldCompressed, cuda::GpuMat& gOldGray, 
+	cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
-	double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
+	double& kSwitch, const int a, const int b, const int compression , cuda::GpuMat& mask_device, bool& stab_possible)
 {
 	capture >> oldFrame;
 
 	gOldFrame.upload(oldFrame);
-
-	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
-	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
-	//cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / frameCompression, gOldGray.rows / frameCompression), 0.0, 0.0, cv::INTER_AREA);
+	gOldCompressed.release();
+	cuda::resize(gOldFrame, gOldCompressed, Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_LINEAR);
+	cuda::cvtColor(gOldCompressed, gOldGray, COLOR_BGR2GRAY);
+	cuda::bilateralFilter(gOldGray, gOldGray, 3, 3.0, 1.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	//cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / frame compression , gOldGray.rows / frame compression ), 0.0, 0.0, cv::INTER_AREA);
 
 	if (qualityLevel > 0.001 && harrisK > 0.001)
 	{
@@ -836,20 +837,21 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 }
 
 
-void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0,
+void initFirstFrameZero(Mat& oldFrame, Mat& oldCompressed, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, 
+	cuda::GpuMat& gOldCompressed, cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
-	double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
+	double& kSwitch, const int a, const int b, const int compression , cuda::GpuMat& mask_device, bool& stab_possible)
 {
 	gOldFrame.upload(oldFrame);
-	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
+	cuda::resize(gOldFrame, gOldCompressed, Size(a/ compression , b/ compression ), 0.0, 0.0, cv::INTER_AREA);
 
-	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0);
-	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
-	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols, gOldGray.rows), 0.0, 0.0, cv::INTER_AREA);
+	cuda::cvtColor(gOldCompressed, gOldGray, COLOR_BGR2GRAY);
+	cuda::bilateralFilter(gOldGray, gOldGray, 3, 3.0, 3.0);
+	//cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols, gOldGray.rows), 0.0, 0.0, cv::INTER_AREA);
 	stab_possible = false;
 }
 
-void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T)
+void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T, const int compression)
 {
 	for (uint i = 0; i < p1.size(); i++)
 	{
@@ -860,11 +862,11 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, ve
 		d = d + (p1[i] - p0[i]);
 	}
 
-	d = d / (int)p0.size();
+	d = d*compression / (int)p0.size();
 
 	if (p0.empty() || p1.empty() || (p1.size() != p0.size()))
 	{
-		transforms[0] = TransformParam(-d.x, -d.y, 0.0);
+		transforms[0] = TransformParam(-d.x*compression, -d.y*compression, 0.0);
 		cout << "bull shit" << endl;
 	}
 	else
@@ -872,7 +874,7 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, ve
 		T = estimateAffine2D(p0, p1);
 
 		//transforms[0] = TransformParam(-(T.at<double>(0, 2) + 3*d.x)/4, -(T.at<double>(1, 2) + 3*d.y)/4, -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
-		transforms[0] = TransformParam(-T.at<double>(0, 2), -T.at<double>(1, 2), -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
+		transforms[0] = TransformParam(-T.at<double>(0, 2)*compression, -T.at<double>(1, 2) * compression, -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
 
 	}
 
@@ -924,9 +926,9 @@ const double RAD_TO_DEG = 180.0 / CV_PI;
 
 // Структура для хранения углов ориентации
 struct OrientationAngles {
-	double roll;    // Крен (радианы)
-	double pitch;   // Тангаж (радианы)
-	double yaw;     // Рыскание (радианы)
+	double roll; // Крен (радианы)
+	double pitch; // Тангаж (радианы)
+	double yaw; // Рыскание (радианы)
 };
 
 // Функция для оценки ориентации по гомографии
@@ -1067,7 +1069,7 @@ int camera_calibration(int argc, char** argv) {
 	}
 
 
-	cv::Matx33f K(cv::Matx33f::eye());  // intrinsic camera matrix
+	cv::Matx33f K(cv::Matx33f::eye()); // intrinsic camera matrix
 	cv::Vec<float, 5> k(0, 0, 0, 0, 0); // distortion coefficients
 
 	std::vector<cv::Mat> rvecs, tvecs;
