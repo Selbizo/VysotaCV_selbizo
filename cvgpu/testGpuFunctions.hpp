@@ -787,7 +787,7 @@ void GfixBorder(cuda::GpuMat& frame_stabilized, Rect& roi)
 
 void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
-	int& n, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
+	int& frameCompression, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
 {
 	capture >> oldFrame;
 
@@ -796,7 +796,7 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
 	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0); //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
-	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
+	//cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / frameCompression, gOldGray.rows / frameCompression), 0.0, 0.0, cv::INTER_AREA);
 
 	if (qualityLevel > 0.001 && harrisK > 0.001)
 	{
@@ -1126,7 +1126,7 @@ int camera_calibration(int argc, char** argv) {
 	return 0;
 }
 
-bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, const double& b, double& nsr, bool& wienner, bool& threadwiener, double& Q, double& tauStab, double& framePart, Rect& roi)
+bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, const double& b, double& nsr, bool& wiener, bool& threadwiener, double& Q, double& tauStab, double& framePart, Rect& roi)
 {
 	if (keyboard == 'c')
 	{
@@ -1145,7 +1145,7 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, co
 	}
 	if (keyboard == '1')
 	{
-		wienner = wienner ^ true;
+		wiener = wiener ^ true;
 	}
 	if (keyboard == 't')
 	{

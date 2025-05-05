@@ -6,14 +6,8 @@
 using namespace cv;
 using namespace std;
 
-//int main(int argc, char** argv)
-
-
-
 int main()
 {
-	//string videoSource = "Timeline 3 480p.mp4";
-	//string videoSource = "live_7_small_3.avi";
 	//string videoSource = "http://192.168.0.102:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://10.108.144.71:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
@@ -23,7 +17,7 @@ int main()
 	bool writeVideo = true;
 	bool stabPossible = false;
 
-	// Create some random colors
+	// Создадим массив случайных цветов для цветов характерных точек
 	vector<Scalar> colors;
 	RNG rng;
 	for (int i = 0; i < 1000; i++)
@@ -34,17 +28,16 @@ int main()
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	int n = 1; //коэффициент сжатия изображения для обработки //пока не работает
+	int frameCompression = 2; //коэффициент сжатия изображения для обработки //пока не работает
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
 
-
 	int	srcType = CV_8UC1;
-	int maxCorners = 400 / n;      //100/n
+	int maxCorners = 400 / frameCompression;      //100/n
 	double qualityLevel = 0.003; //0.0001
-	double minDistance = 6.0/n + 2.0; //8.0
-	int blockSize = 35/n + 10; //45 80 максимальное значение окна
+	double minDistance = 6.0/ frameCompression + 2.0; //8.0
+	int blockSize = 35/ frameCompression + 10; //45 80 максимальное значение окна
 	bool useHarrisDetector = true;
 	double harrisK = qualityLevel;
 
@@ -111,10 +104,10 @@ int main()
 
 
 	// переменные для фильтра Виннера
-	Mat Hw, h, frameGray_wienner;
-	cuda::GpuMat gHw, gH, gFrameGrayWienner;
+	Mat Hw, h, frameGray_wiener;
+	cuda::GpuMat gHw, gH, gFrameGrayWiener;
 
-	bool wienner = false;
+	bool wiener = false;
 	bool threadwiener = false;
 	double nsr = 0.01;
 	double Q = 8.0; // скважность считывания кадра на камере (выдержка к частоте кадров) (умножена на 10)
@@ -122,11 +115,11 @@ int main()
 	double THETA = 0.0;
 
 	//для обработки трех каналов по Виннеру
-	vector<Mat> channels(3), channelsWienner(3);
-	Mat frame_wienner;
+	vector<Mat> channels(3), channelsWiener(3);
+	Mat frame_wiener;
 
-	vector<cuda::GpuMat> gChannels(3), gChannelsWienner(3);
-	cuda::GpuMat gFrameWienner;
+	vector<cuda::GpuMat> gChannels(3), gChannelsWiener(3);
+	cuda::GpuMat gFrameWiener;
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~для вывода изображения на дисплей~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat croppedImg, frame_crop;
@@ -159,8 +152,8 @@ int main()
 
 	capture >> oldFrame;
 
-	const double a = oldFrame.cols/n;
-	const double b = oldFrame.rows/n;
+	const double a = oldFrame.cols/ frameCompression;
+	const double b = oldFrame.rows/ frameCompression;
 	const double c = sqrt(a * a + b * b);
 	const double atan_ba = atan2(b, a);
 
@@ -209,8 +202,8 @@ int main()
 	Scalar colorBLUE(239, 107, 23);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	Mat mask_host = Mat::zeros(cv::Size(a / n, b / n), CV_8U);
-	rectangle(mask_host, Rect(a * (1.0 - 0.8) / 2 / n, b * (1.0 - 0.8) / 2 / n, a * 0.8 / n, b * 0.8 / n), Scalar(255), FILLED); // Прямоугольная маска
+	Mat mask_host = Mat::zeros(cv::Size(a, b), CV_8U);
+	rectangle(mask_host, Rect(a * (1.0 - 0.8) / 2, b * (1.0 - 0.8) / 2, a * 0.8, b * 0.8), Scalar(255), FILLED); // Прямоугольная маска
 	cuda::GpuMat mask_device(mask_host);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создаем GpuMat для мнимой части фильтра Винера~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -234,7 +227,7 @@ int main()
 	int frameCount = 0;
 
 	while (true) {
-		initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, n, kSwitch, a, b, mask_device, stabPossible);
+		initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, frameCompression, kSwitch, a, b, mask_device, stabPossible);
 		if (stabPossible)
 			break;
 	}
@@ -283,8 +276,8 @@ int main()
 			{
 				if (status[i] && p1[i].x < a * 31 / 32 && p1[i].x > a * 1 / 32 && p1[i].y < b * 31 / 32 && p1[i].y > b * 1 / 16) {
 					//if (status[i] && p1[i].x < a * 3 / 4 && p1[i].x > a * 1 / 7 && p1[i].y < b * 6 / 7 && p1[i].y > b * 1 / 4) {
-					p1[i].x *= n;
-					p1[i].y *= n;
+					p1[i].x *= frameCompression;
+					p1[i].y *= frameCompression;
 					p0.push_back(p1[i]); // Выбор точек good_new
 				}
 			}
@@ -342,7 +335,7 @@ int main()
 
 		if (stabPossible) {
 
-			if (wienner == false && p0.size() > 0 && 0)
+			if (wiener == false && p0.size() > 0 && 0)
 			{
 				for (uint i = 0; i < p0.size(); i++)
 					circle(frame, p1[i], 4, colors[i], -1);
@@ -376,11 +369,11 @@ int main()
 			gFrame.upload(frame);
 
 			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / frameCompression, b / frameCompression), 0.0, 0.0, INTER_CUBIC);
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
-				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, n, kSwitch, a, b, mask_device, stabPossible); //70ms
+				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, frameCompression, kSwitch, a, b, mask_device, stabPossible); //70ms
 				//stabPossible = 0;
 			}
 			else if (frameCnt % 50 == 1 && !stabPossible)
@@ -388,7 +381,7 @@ int main()
 
 			}
 			else
-				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, n, kSwitch, a, b, mask_device, stabPossible); //70ms
+				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, frameCompression, kSwitch, a, b, mask_device, stabPossible); //70ms
 
 			if (stabPossible) {
 				d_pyrLK_sparse->calc(gOldGray, gFrameGray, gP0, gP1, gStatus, gErr);
@@ -399,7 +392,7 @@ int main()
 		}
 		else if (stabPossible) {
 			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / n, b / n), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / frameCompression, b / frameCompression), 0.0, 0.0, INTER_CUBIC);
 			d_pyrLK_sparse->calc(useGray ? gOldGray : gOldFrame, useGray ? gFrameGray : gFrame, gP0, gP1, gStatus);
 			//cuda::multiply(gP1, 4.0, gP1);
 			gP1.download(p1);
@@ -415,7 +408,7 @@ int main()
 		if (stabPossible) {
 			download(gStatus, status);
 			// условно gFrameOpticalFlow.join();
-			getBiasAndRotation(p0, p1, d, transforms, T, n); //уже можно делать Винеровскую фильтрацию
+			getBiasAndRotation(p0, p1, d, transforms, T, frameCompression); //уже можно делать Винеровскую фильтрацию
 
 			
 
@@ -435,7 +428,7 @@ int main()
 			
 
 			// Винеровская фильтрация
-			if (wienner && kSwitch > 0.01)
+			if (wiener && kSwitch > 0.01)
 			{
 				//LEN = sqrt(d.x * d.x + d.y * d.y) / Q;
 				LEN = sqrt(transforms[0].dx * transforms[0].dx + transforms[0].dy * transforms[0].dy) / Q;
@@ -463,20 +456,20 @@ int main()
 					for (unsigned short i = 0; i < 3; i++) //обработка трех цветных каналов можно разделить на три потока
 					{
 						//gChannels[i].convertTo(gChannels[i], CV_32F);
-						Gfilter2DFreqV2(gChannels[i], gChannelsWienner[i], complexH, forwardDFT, inverseDFT);
+						Gfilter2DFreqV2(gChannels[i], gChannelsWiener[i], complexH, forwardDFT, inverseDFT);
 					}
 				}
 				else
 				{
-					std::thread blueChannelWiener(channelWiener, &gChannels[0], &gChannelsWienner[0], &complexH, &forwardDFT, &inverseDFT);
-					std::thread greenChannelWiener(channelWiener, &gChannels[1], &gChannelsWienner[1], &complexH, &forwardDFT, &inverseDFT);
-					std::thread redChannelWiener(channelWiener, &gChannels[2], &gChannelsWienner[2], &complexH, &forwardDFT, &inverseDFT);
+					std::thread blueChannelWiener(channelWiener, &gChannels[0], &gChannelsWiener[0], &complexH, &forwardDFT, &inverseDFT);
+					std::thread greenChannelWiener(channelWiener, &gChannels[1], &gChannelsWiener[1], &complexH, &forwardDFT, &inverseDFT);
+					std::thread redChannelWiener(channelWiener, &gChannels[2], &gChannelsWiener[2], &complexH, &forwardDFT, &inverseDFT);
 
 					blueChannelWiener.join();
 					greenChannelWiener.join();
 					redChannelWiener.join();
 				}
-				cuda::merge(gChannelsWienner, gFrame);
+				cuda::merge(gChannelsWiener, gFrame);
 				gFrame.convertTo(gFrame, CV_8UC3);
 				cuda::bilateralFilter(gFrame, gFrame, 13, 5.0, 3.0);
 			}
@@ -509,7 +502,7 @@ int main()
 
 				cv::putText(writerFrame, format("It's OK. WnrFltr Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), 
 					textOrg[0], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wienner, threadwiener, stabPossible), 
+				cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wiener, threadwiener, stabPossible), 
 					textOrg[1], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(writerFrame, format("[X Y Roll] %2.2f %2.2f %2.2f]", transforms[1].dx, transforms[1].dy, transforms[1].da*RAD_TO_DEG), 
 					textOrg[2], fontFace, fontScale, color, 2, 8, false);
@@ -538,7 +531,7 @@ int main()
 			}
 			else {
 				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("Wienner[1] %d, thread[t] %d", wienner, threadwiener), textOrg[1], fontFace, fontScale, color, 2, 8, false);
+				cv::putText(croppedImg, format("Wiener[1] %d, thread[t] %d", wiener, threadwiener), textOrg[1], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
 					textOrg[2], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
@@ -579,7 +572,7 @@ int main()
 
 				cv::putText(writerFrame, format("NOT GOOD. WnrFltr Q[5][6] = % 2.1f, SNR[7][8] = % 2.1f", Q, 1 / nsr),
 					textOrg[0], fontFace, fontScale, colorRED, 2, 8, false);
-				cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wienner, threadwiener, stabPossible),
+				cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wiener, threadwiener, stabPossible),
 					textOrg[1], fontFace, fontScale, colorRED, 2, 8, false);
 				cv::putText(writerFrame, format("[X Y Roll] %2.2f %2.2f %2.2f]", transforms[1].dx, transforms[1].dy, transforms[1].da* RAD_TO_DEG),
 					textOrg[2], fontFace, fontScale, colorRED, 2, 8, false);
@@ -610,7 +603,7 @@ int main()
 			}
 			else {
 				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("Wienner[1] %d, thread[t] %d", wienner, threadwiener), textOrg[1], fontFace, fontScale, color, 2, 8, false);
+				cv::putText(croppedImg, format("Wiener[1] %d, thread[t] %d", wiener, threadwiener), textOrg[1], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
 					textOrg[2], fontFace, fontScale, color, 2, 8, false);
 				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
@@ -626,7 +619,7 @@ int main()
 		// Ожидание внешних команд управления с клавиатуры
 
 		int keyboard = waitKey(1);
-		if (keyResponse(keyboard, frame, croppedImg, a, b, nsr, wienner, threadwiener, Q, tauStab, framePart, roi))
+		if (keyResponse(keyboard, frame, croppedImg, a, b, nsr, wiener, threadwiener, Q, tauStab, framePart, roi))
 			break;
 		
 	}
