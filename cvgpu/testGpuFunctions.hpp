@@ -787,7 +787,7 @@ void GfixBorder(cuda::GpuMat& frame_stabilized, Rect& roi)
 
 void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
-	int& frameCompression, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
+	double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
 {
 	capture >> oldFrame;
 
@@ -838,18 +838,18 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 
 void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
-	int& n, double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
+	double& kSwitch, int a, int b, cuda::GpuMat& mask_device, bool& stab_possible)
 {
 	gOldFrame.upload(oldFrame);
 	cuda::resize(gOldFrame, gOldFrame, Size(a, b), 0.0, 0.0, cv::INTER_AREA);
 
 	cuda::bilateralFilter(gOldFrame, gOldFrame, 3, 3.0, 3.0);
 	cuda::cvtColor(gOldFrame, gOldGray, COLOR_BGR2GRAY);
-	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols / n, gOldGray.rows / n), 0.0, 0.0, cv::INTER_AREA);
+	cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols, gOldGray.rows), 0.0, 0.0, cv::INTER_AREA);
 	stab_possible = false;
 }
 
-void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T, int n)
+void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T)
 {
 	for (uint i = 0; i < p1.size(); i++)
 	{
@@ -864,7 +864,7 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, ve
 
 	if (p0.empty() || p1.empty() || (p1.size() != p0.size()))
 	{
-		transforms[0] = TransformParam(-d.x * n, -d.y * n, 0.0);
+		transforms[0] = TransformParam(-d.x, -d.y, 0.0);
 		cout << "bull shit" << endl;
 	}
 	else

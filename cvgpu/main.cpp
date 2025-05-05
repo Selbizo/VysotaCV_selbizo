@@ -28,16 +28,16 @@ int main()
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	int frameCompression = 2; //коэффициент сжатия изображения для обработки //пока не работает
+	//int     = 2; //коэффициент сжатия изображения для обработки //пока не работает
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
 
 	int	srcType = CV_8UC1;
-	int maxCorners = 400 / frameCompression;      //100/n
+	int maxCorners = 400   ;      //100/n
 	double qualityLevel = 0.003; //0.0001
-	double minDistance = 6.0/ frameCompression + 2.0; //8.0
-	int blockSize = 35/ frameCompression + 10; //45 80 максимальное значение окна
+	double minDistance = 6.0   + 2.0; //8.0
+	int blockSize = 35   + 10; //45 80 максимальное значение окна
 	bool useHarrisDetector = true;
 	double harrisK = qualityLevel;
 
@@ -152,8 +152,8 @@ int main()
 
 	capture >> oldFrame;
 
-	const double a = oldFrame.cols/ frameCompression;
-	const double b = oldFrame.rows/ frameCompression;
+	const double a = oldFrame.cols  ;
+	const double b = oldFrame.rows  ;
 	const double c = sqrt(a * a + b * b);
 	const double atan_ba = atan2(b, a);
 
@@ -227,7 +227,7 @@ int main()
 	int frameCount = 0;
 
 	while (true) {
-		initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, frameCompression, kSwitch, a, b, mask_device, stabPossible);
+		initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms,    kSwitch, a, b, mask_device, stabPossible);
 		if (stabPossible)
 			break;
 	}
@@ -276,8 +276,8 @@ int main()
 			{
 				if (status[i] && p1[i].x < a * 31 / 32 && p1[i].x > a * 1 / 32 && p1[i].y < b * 31 / 32 && p1[i].y > b * 1 / 16) {
 					//if (status[i] && p1[i].x < a * 3 / 4 && p1[i].x > a * 1 / 7 && p1[i].y < b * 6 / 7 && p1[i].y > b * 1 / 4) {
-					p1[i].x *= frameCompression;
-					p1[i].y *= frameCompression;
+					p1[i].x     ;
+					p1[i].y     ;
 					p0.push_back(p1[i]); // Выбор точек good_new
 				}
 			}
@@ -369,11 +369,11 @@ int main()
 			gFrame.upload(frame);
 
 			cuda::cvtColor(gFrame, gFrameGray, COLOR_BGR2GRAY);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / frameCompression, b / frameCompression), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrameGray, gFrameGray, cv::Size(a   , b   ), 0.0, 0.0, INTER_CUBIC);
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
-				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, frameCompression, kSwitch, a, b, mask_device, stabPossible); //70ms
+				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms,    kSwitch, a, b, mask_device, stabPossible); //70ms
 				//stabPossible = 0;
 			}
 			else if (frameCnt % 50 == 1 && !stabPossible)
@@ -381,7 +381,7 @@ int main()
 
 			}
 			else
-				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, frameCompression, kSwitch, a, b, mask_device, stabPossible); //70ms
+				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms,    kSwitch, a, b, mask_device, stabPossible); //70ms
 
 			if (stabPossible) {
 				d_pyrLK_sparse->calc(gOldGray, gFrameGray, gP0, gP1, gStatus, gErr);
@@ -392,7 +392,7 @@ int main()
 		}
 		else if (stabPossible) {
 			cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
-			cuda::resize(gFrameGray, gFrameGray, cv::Size(a / frameCompression, b / frameCompression), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrameGray, gFrameGray, cv::Size(a   , b   ), 0.0, 0.0, INTER_CUBIC);
 			d_pyrLK_sparse->calc(useGray ? gOldGray : gOldFrame, useGray ? gFrameGray : gFrame, gP0, gP1, gStatus);
 			//cuda::multiply(gP1, 4.0, gP1);
 			gP1.download(p1);
@@ -408,7 +408,7 @@ int main()
 		if (stabPossible) {
 			download(gStatus, status);
 			// условно gFrameOpticalFlow.join();
-			getBiasAndRotation(p0, p1, d, transforms, T, frameCompression); //уже можно делать Винеровскую фильтрацию
+			getBiasAndRotation(p0, p1, d, transforms, T); //уже можно делать Винеровскую фильтрацию
 
 			
 
