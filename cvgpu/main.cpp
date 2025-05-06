@@ -28,7 +28,7 @@ int main()
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	const int compression = 2; //коэффициент сжатия изображения для обработки //пока не работает
+	const int compression = 4; //коэффициент сжатия изображения для обработки //пока не работает
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
@@ -107,9 +107,6 @@ int main()
 	vector<cuda::GpuMat> gChannels(3), gChannelsWiener(3);
 	cuda::GpuMat gFrameWiener;
 
-	//~~~~~~~~~~~~~~~~~~~~~~~~~~~для вывода изображения на дисплей~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	Mat croppedImg, frame_crop;
-	cuda::GpuMat gCroppedImg, gFrameCrop, gFrameCropHigh;
 
 	// ~~~~~~~~~~~~~~~~~~~~~~~~~~~ для счетчика кадров в секунду ~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 	int frameCnt = 0;
@@ -143,7 +140,7 @@ int main()
 	const double c = sqrt(a * a + b * b);
 	const double atan_ba = atan2(b, a);
 
-	cuda::GpuMat gFrameStabilized;
+	cuda::GpuMat gFrameStabilized(a, b, CV_8UC3);
 
 	cuda::GpuMat gFrame(a,b, CV_8UC3), 
 		gGray(a/compression, b / compression, CV_8UC1), 
@@ -161,6 +158,9 @@ int main()
 	roi.height = b * framePart;
 
 
+	//~~~~~~~~~~~~~~~~~~~~~~~~~~~для вывода изображения на дисплей~~~~~~~~~~~~~~~~~~~~~~~~~~~
+	Mat croppedImg(a, b, CV_8UC3), frame_crop;
+	cuda::GpuMat gFrameCrop(roi.width, roi.height, CV_8UC3), gFrameCropResized(a, b, CV_8UC3);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Для отображения надписей на кадре~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	setlocale(LC_ALL, "RU");
@@ -334,7 +334,7 @@ int main()
 		if (stabPossible) {
 			gFrame.upload(frame);
 
-			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_NEAREST);
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
 			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
 		}
@@ -359,7 +359,7 @@ int main()
 			gFrame.upload(frame);
 			gCompressed.release();
 			//gGray.release();
-			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_CUBIC);
+			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_NEAREST);
 
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
 			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
@@ -455,22 +455,22 @@ int main()
 				cuda::bilateralFilter(gFrame, gFrame, 13, 5.0, 3.0);
 			}
 
-			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b));
+			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b)); //8ms
 
 			gFrameCrop = gFrameStabilized(roi); 
-			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, INTER_LINEAR);
-			gFrameCrop.download(croppedImg);
+			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST); //8ms
+			gFrameCropResized.download(croppedImg); //9 ms
 			
 			endPing = clock();
 						
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
 			if (writeVideo)
 			{
-				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_LINEAR);
-				gFrame.download(frame);
+				gFrame = gFrame(roi); //without stab
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST); //8ms
+				gFrame.download(frame); //9 ms
 				
-				frame.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
+				frame.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows))); //5ms
 				croppedImg.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
 
 				if (p0.size() > 0)
@@ -506,7 +506,7 @@ int main()
 								
 				writer.write(writerFrame);
 				writerSmall.write(croppedImg);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_LINEAR);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_NEAREST);
 				cv::imshow("Writed", writerFrameToShow);
 			}
 			else {
@@ -534,13 +534,13 @@ int main()
 
 			gFrameCrop = gFrameStabilized(roi);
 
-			cuda::resize(gFrameCrop, gFrameCrop, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
-			gFrameCrop.download(croppedImg);
+			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST);
+			gFrameCropResized.download(croppedImg);
 			//endPing = clock();
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_CUBIC);
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST);
 				gFrame.download(frame);
 
 				frame.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
@@ -574,7 +574,7 @@ int main()
 
 				writer.write(writerFrame);
 				writerSmall.write(croppedImg);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_LINEAR);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_NEAREST);
 				cv::imshow("Writed", writerFrameToShow);
 
 			}
