@@ -14,7 +14,7 @@ int main()
 	string videoSource = "./SourceVideos/trees4k.mp4"; // pad6-100, pixel4-101, pixel-102
 	//int videoSource = 0;
 
-	bool writeVideo = true;
+	bool writeVideo = false;
 	bool stabPossible = false;
 
 	// Создадим массив случайных цветов для цветов характерных точек
@@ -28,7 +28,7 @@ int main()
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	const int compression = 4; //коэффициент сжатия изображения для обработки //пока не работает
+	const int compression = 1; //коэффициент сжатия изображения для обработки //пока не работает
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
@@ -53,8 +53,6 @@ int main()
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
 
-	//переменные для запоминания кадров и характерных точек
-	Mat frame, gray, temp, compressed, oldCompressed;
 	Mat oldFrame, oldGray;
 
 	vector<Point2f> p0, p1, good_new;
@@ -123,9 +121,11 @@ int main()
 
 	VideoCapture capture(videoSource);
 
-	// Попытка установить 720p (1280x720)
+	 //Попытка установить 720p (1280x720)
+
 	//capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
 	//capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
+	
 
 	if (!capture.isOpened()) {
 		//error in opening the video input
@@ -140,6 +140,8 @@ int main()
 	const double c = sqrt(a * a + b * b);
 	const double atan_ba = atan2(b, a);
 
+	//переменные для запоминания кадров и характерных точек
+	Mat frame(a, b, CV_8UC3), gray, temp, compressed, oldCompressed;
 	cuda::GpuMat gFrameStabilized(a, b, CV_8UC3);
 
 	cuda::GpuMat gFrame(a,b, CV_8UC3), 
@@ -173,29 +175,29 @@ int main()
 		for (int i = 0; i < 20; i++)
 		{
 			textOrg[i].x = 5 + a;
-			textOrg[i].y = 5 + 32 * (i + 1) + b;
+			textOrg[i].y = 5 + 50 * (i + 1) + b;
 
 			textOrgCrop[i].x = 5;
-			textOrgCrop[i].y = 5 + 32 * (i + 1) + b;
+			textOrgCrop[i].y = 5 + 50*(i + 1) + b;
 
 			textOrgStab[i].x = 5;
-			textOrgStab[i].y = 5 + 32 * (i + 1);
+			textOrgStab[i].y = 5 + 50 * (i + 1);
 
 			textOrgOrig[i].x = 5 + a;
-			textOrgOrig[i].y = 5 + 32 * (i + 1);
+			textOrgOrig[i].y = 5 + 50 * (i + 1);
 		}
 	}
 	else {
 		for (int i = 0; i < 20; i++)
 		{
-			textOrg[i].x = 20;
-			textOrg[i].y = 100 + 40 * (i + 1);
+			textOrg[i].x = 5;
+			textOrg[i].y = 5 + 40 * (i + 1);
 		}
 	}
 
 
-	int fontFace = FONT_HERSHEY_PLAIN;
-	double fontScale = 1.3;
+	int fontFace = FONT_HERSHEY_SIMPLEX;
+	double fontScale = 2.0;
 	Scalar color(82, 156, 23);
 	Scalar colorRED(48, 62, 255);
 	Scalar colorGREEN(82, 156, 23);
@@ -204,7 +206,7 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//Mat mask_host = Mat::zeros(cv::Size(a, b), CV_8U); //orig
 	Mat mask_host = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
-	rectangle(mask_host, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
+	cv::rectangle(mask_host, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
 		Scalar(255), FILLED); // Прямоугольная маска
 	cuda::GpuMat mask_device(mask_host);
 
@@ -326,7 +328,7 @@ int main()
 
 		if (writeVideo && stabPossible) {
 			//cv::putText(frame, format("Raw Video Stream"), textOrg[9], fontFace, fontScale, color, 2, 8, false);
-			rectangle(writerFrame, Rect(a, b, a, b), Scalar(50, 50, 50), FILLED); // покрасили в один цвет
+			cv::rectangle(writerFrame, Rect(a, b, a, b), Scalar(50, 50, 50), FILLED); // покрасили в один цвет
 			frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 		}
 		frameCnt++;
@@ -334,7 +336,7 @@ int main()
 		if (stabPossible) {
 			gFrame.upload(frame);
 
-			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_NEAREST);
+			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_CUBIC);
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
 			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
 		}
@@ -348,18 +350,18 @@ int main()
 			p0.clear();
 			p1.clear();
 
-			gOldGray.release();
+			//gOldGray.release();
 			
 			capture >> frame;
 
 			if (!stabPossible) {
-				rectangle(writerFrame, Rect(a, b, a, b), Scalar(0, 0, 0), FILLED); // Прямоугольная маска
+				cv::rectangle(writerFrame, Rect(a, b, a, b), Scalar(0, 0, 0), FILLED); // Прямоугольная маска
 				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 			}
 			gFrame.upload(frame);
-			gCompressed.release();
+			//gCompressed.release();
 			//gGray.release();
-			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, INTER_NEAREST);
+			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_CUBIC);
 
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
 			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
@@ -458,16 +460,17 @@ int main()
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b)); //8ms
 
 			gFrameCrop = gFrameStabilized(roi); 
-			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST); //8ms
-			gFrameCropResized.download(croppedImg); //9 ms
+			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
 			
+			gFrameCropResized.download(croppedImg); //9 ms
+			croppedImg(cv::Rect(0, 0, 820, 500)) *= 0.2;
 			endPing = clock();
 						
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi); //without stab
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST); //8ms
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
 				gFrame.download(frame); //9 ms
 				
 				frame.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows))); //5ms
@@ -504,22 +507,30 @@ int main()
 				cv::putText(writerFrame, format("Without Stab"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
 				cv::putText(writerFrame, format("Stab ON"), textOrgStab[0], fontFace, fontScale * 1.3, color, 2, 8, false);
 								
-				writer.write(writerFrame);
-				writerSmall.write(croppedImg);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_NEAREST);
+				//writer.write(writerFrame);
+				//writerSmall.write(croppedImg);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1920, 1080), 0.0, 0.0, cv::INTER_CUBIC);
 				cv::imshow("Writed", writerFrameToShow);
 			}
 			else {
-				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("Wiener[1] %d, thread[t] %d", wiener, threadwiener), textOrg[1], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
-					textOrg[2], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), textOrg[6], fontFace, fontScale, color, 2, 8, false);
 				
-				cv::imshow("Esc for exit. 10/02/25", croppedImg);
+				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), 
+					textOrg[0], fontFace, fontScale / 2, color, 2, 8, false);
+				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), 
+					textOrg[1], fontFace, fontScale / 2, color, 2, 8, false);
+				cv::putText(croppedImg, format("Wiener[1] %d, thread[t] %d", wiener, threadwiener), 
+					textOrg[2], fontFace, fontScale / 2, color, 2, 8, false);
+				cv::putText(croppedImg, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
+					textOrg[3], fontFace, fontScale / 2, color, 2, 8, false);
+				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), 
+					textOrg[4], fontFace, fontScale / 2, color, 2, 8, false);
+				cv::putText(croppedImg, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), 
+					textOrg[5], fontFace, fontScale / 2, color, 2, 8, false);
+				cv::putText(croppedImg, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), 
+					textOrg[6], fontFace, fontScale / 2, color, 2, 8, false);
+				
+				cv::resize(croppedImg, writerFrameToShow, cv::Size(1920, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				cv::imshow("Writed", writerFrameToShow);
 			}
 		}
 		else {
@@ -534,13 +545,13 @@ int main()
 
 			gFrameCrop = gFrameStabilized(roi);
 
-			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST);
+			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC);
 			gFrameCropResized.download(croppedImg);
 			//endPing = clock();
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, INTER_NEAREST);
+				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC);
 				gFrame.download(frame);
 
 				frame.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
@@ -572,23 +583,30 @@ int main()
 				cv::putText(writerFrame, format("Without Stab"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
 				cv::putText(writerFrame, format("Stab error"), textOrgStab[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
 
-				writer.write(writerFrame);
-				writerSmall.write(croppedImg);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(1600, 900), 0.0, 0.0, INTER_NEAREST);
+				//writer.write(writerFrame);
+				//writerSmall.write(croppedImg);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1920, 1080), 0.0, 0.0, cv::INTER_CUBIC);
 				cv::imshow("Writed", writerFrameToShow);
 
 			}
 			else {
-				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), textOrg[0], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("Wiener[1] %d, thread[t] %d", wiener, threadwiener), textOrg[1], fontFace, fontScale, color, 2, 8, false);
+				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), 
+					textOrg[0], fontFace, fontScale / 2, colorRED, 2, 8, false);
+				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), 
+					textOrg[1], fontFace, fontScale / 2, colorRED, 2, 8, false);
+				cv::putText(croppedImg, format("Wiener[1] %d, thread[t] %d", wiener, threadwiener), 
+					textOrg[2], fontFace, fontScale / 2, colorRED, 2, 8, false);
 				cv::putText(croppedImg, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), 180.0 / 3.14 * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
-					textOrg[2], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), textOrg[3], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), textOrg[4], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(writerFrame, format("Crop[w][s] = %2.1f ,%d Corners of %d.", 1 / framePart, gP0.cols, maxCorners), textOrg[5], fontFace, fontScale, color, 2, 8, false);
-				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), textOrg[6], fontFace, fontScale, color, 2, 8, false);
+					textOrg[3], fontFace, fontScale / 2, colorRED, 2, 8, false);
+				cv::putText(croppedImg, format("[dx dy] %2.2f %2.2f]", d.x, d.y), 
+					textOrg[4], fontFace, fontScale / 2, colorRED, 2, 8, false);
+				cv::putText(croppedImg, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), 
+					textOrg[5], fontFace, fontScale / 2, colorRED, 2, 8, false);
+				cv::putText(croppedImg, format("Crop[w][s] = %2.1f ,%d Corners of %d.", 1 / framePart, gP0.cols, maxCorners),
+					textOrg[6], fontFace, fontScale / 2, colorRED, 2, 8, false);
 
-				cv::imshow("Esc for exit. 10/02/25", croppedImg);
+				cv::resize(croppedImg, writerFrameToShow, cv::Size(1920, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				cv::imshow("Writed", writerFrameToShow);
 			}
 
 		}
