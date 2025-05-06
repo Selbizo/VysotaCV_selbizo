@@ -28,7 +28,7 @@ int main()
 		colors.push_back(Scalar(b, g, r));
 	}
 	// переменные для поиска характерных точек
-	const int compression = 1; //коэффициент сжатия изображения для обработки //пока не работает
+	const int compression = 2; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
 	vector<uchar> status;
 	//vector<Point2f> err;
 	Mat err;
@@ -343,7 +343,7 @@ int main()
 
 		if ((gP0.cols < maxCorners * 1 / 5) || !stabPossible)
 		{
-			if (maxCorners > 300)
+			if (maxCorners > 200) //300
 				maxCorners *= 0.95;
 			if (gP0.cols < maxCorners * 1 / 4 && stabPossible)
 				d_features->setMaxCorners(maxCorners);
@@ -463,7 +463,7 @@ int main()
 			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
 			
 			gFrameCropResized.download(croppedImg); //9 ms
-			croppedImg(cv::Rect(0, 0, 820, 500)) *= 0.2;
+			croppedImg(cv::Rect(0, 0, 820, textOrg[7].y)) *= 0.3;
 			endPing = clock();
 						
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
@@ -547,7 +547,7 @@ int main()
 
 			cuda::resize(gFrameCrop, gFrameCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC);
 			gFrameCropResized.download(croppedImg);
-			//endPing = clock();
+			croppedImg(cv::Rect(0, 0, 820, textOrg[7].y)) *= 0.3;
 			if (writeVideo)
 			{
 				gFrame = gFrame(roi);
@@ -590,7 +590,7 @@ int main()
 
 			}
 			else {
-				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f", 1 / seconds, secondsPing), 
+				cv::putText(croppedImg, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b),
 					textOrg[0], fontFace, fontScale / 2, colorRED, 2, 8, false);
 				cv::putText(croppedImg, format("No recording Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr), 
 					textOrg[1], fontFace, fontScale / 2, colorRED, 2, 8, false);
