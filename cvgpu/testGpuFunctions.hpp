@@ -66,37 +66,6 @@ struct TransformParam
 	double dy;
 	double da; // angle
 
-	const void getTransform(Mat& T, Mat& frame, double crop)
-	{
-		double a = frame.cols;
-		double b = frame.rows;
-		double c = sqrt(a * a + b * b);
-
-		// Reconstruct transformation matrix accordingly to new values
-		T.at<double>(0, 0) = cos(da);
-		T.at<double>(0, 1) = -sin(da);
-		T.at<double>(1, 0) = sin(da);
-		T.at<double>(1, 1) = cos(da);
-		//T.at<double>(0, 2) = dx + (a - c * cos(da + atan(b / a)))/2;
-		//T.at<double>(1, 2) = dy + (b - c * sin(da + atan(b / a)))/2;
-		T.at<double>(0, 2) = dx - a * crop * (1 - cos(atan(b / a) + da)) / 2;
-		T.at<double>(1, 2) = dy - b * crop * (sin(atan(b / a) + da)) / 2;
-
-	}
-
-	const void getTransform(Mat& T, double a, double b, double c, double crop)
-	{
-		// Reconstruct transformation matrix accordingly to new values
-		T.at<double>(0, 0) = cos(da);
-		T.at<double>(0, 1) = -sin(da);
-		T.at<double>(1, 0) = sin(da);
-		T.at<double>(1, 1) = cos(da);
-		//T.at<double>(0, 2) = dx + (a - c * cos(da + atan(b / a)))/2;
-		//T.at<double>(1, 2) = dy + (b - c * sin(da + atan(b / a)))/2;
-		T.at<double>(0, 2) = dx - a * crop * (1 - cos(atan(b / a) + da)) / 2;
-		T.at<double>(1, 2) = dy - b * crop * (sin(atan(b / a) + da)) / 2;
-	}
-
 	const void getTransform(Mat& T, double a, double b, double c, double atan_ba, double crop)
 	{
 		// Reconstruct transformation matrix accordingly to new values
@@ -104,10 +73,20 @@ struct TransformParam
 		T.at<double>(0, 1) = -sin(da);
 		T.at<double>(1, 0) = sin(da);
 		T.at<double>(1, 1) = cos(da);
-		//T.at<double>(0, 2) = dx + (a - c * cos(da + atan_ba))/2;
-		//T.at<double>(1, 2) = dy + (b - c * sin(da + atan_ba))/2;
 		T.at<double>(0, 2) = dx;
 		T.at<double>(1, 2) = dy;
+
+	}
+
+	const void getTransformInvert(Mat& T, double a, double b, double c, double atan_ba, double crop)
+	{
+		// Reconstruct unverted transformation matrix accordingly to new values
+		T.at<double>(0, 0) = cos(-da);
+		T.at<double>(0, 1) = -sin(-da);
+		T.at<double>(1, 0) = sin(-da);
+		T.at<double>(1, 1) = cos(-da);
+		T.at<double>(0, 2) = -dx;
+		T.at<double>(1, 2) = -dy;
 
 	}
 };
@@ -116,9 +95,6 @@ void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& f
 
 void fixBorder(Mat& frame_stabilized, double frame_part);
 
-
-//void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray, cuda::GpuMat& gP0, vector<Point2f>& p0, double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms);
-//void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, vector <TransformParam>& transforms, Mat& T);
 
 void calcPSF(Mat& outputImg, Size filterSize, int len, double theta);
 void calcPSF(Mat& outputImg, Size filterSize, int len, double theta, Mat& temp);
@@ -1128,7 +1104,7 @@ int camera_calibration(int argc, char** argv) {
 	return 0;
 }
 
-bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, const double& b, double& nsr, bool& wiener, bool& threadwiener, double& Q, double& tauStab, double& framePart, Rect& roi)
+bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda::GpuMat gCrossRef, const double& a, const double& b, double& nsr, bool& wiener, bool& threadwiener, double& Q, double& tauStab, double& framePart, Rect& roi)
 {
 	if (keyboard == 'c')
 	{
@@ -1188,7 +1164,12 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, co
 			roi.y = b * ((1.0 - framePart) / 2.0);
 			roi.width = a * framePart;
 			roi.height = b * framePart;
-
+			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+			cv::rectangle(crossRef, roi, Scalar(0, 0, 50), -1); // покрасили в один цвет
+			cv::rectangle(crossRef, roi, Scalar(200, 200, 200), 2); // покрасили в один цвет
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, Scalar(200, 200, 200), 2);
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(0, b * framePart / 8), 0.0, 0, 360, Scalar(200, 200, 200), 2);
+			gCrossRef.upload(crossRef);
 		}
 	}
 	if (keyboard == 'w' || keyboard == 'W')
@@ -1202,7 +1183,12 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, const double& a, co
 			roi.y = b * ((1.0 - framePart) / 2.0);
 			roi.width = a * framePart;
 			roi.height = b * framePart;
-
+			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+			cv::rectangle(crossRef, roi, Scalar(0, 0, 50), -1); // покрасили в один цвет
+			cv::rectangle(crossRef, roi, Scalar(200, 200, 200), 2); // покрасили в один цвет
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, Scalar(200, 200, 200), 2);
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(0, b * framePart / 8), 0.0, 0, 360, Scalar(200, 200, 200), 2);
+			gCrossRef.upload(crossRef);
 		}
 	}
 	return false;
