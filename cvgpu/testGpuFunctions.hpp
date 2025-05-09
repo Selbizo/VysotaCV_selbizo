@@ -24,11 +24,9 @@
 #include <stdio.h>
 #include <thread>
 #include <vector>
-// 
-//#include <opencv2/cudev/ptr2d/warping.hpp>
+
 using namespace cv;
 using namespace std;
-
 
 Scalar colorRED(48, 62, 255);
 Scalar colorGREEN(82, 156, 23);
@@ -36,8 +34,8 @@ Scalar colorBLUE(239, 107, 23);
 Scalar colorWHITE(255, 255, 255);
 
 
-static void download(const cuda::GpuMat& d_mat, vector<Point2f>& vec);
-static void download(const cuda::GpuMat& d_mat, vector<uchar>& vec);
+//static void download(const cuda::GpuMat& d_mat, vector<Point2f>& vec);
+//static void download(const cuda::GpuMat& d_mat, vector<uchar>& vec);
 
 struct TransformParam
 {
@@ -78,27 +76,27 @@ struct TransformParam
 	}
 };
 
-void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& frame);
-
-void fixBorder(Mat& frame_stabilized, double frame_part);
-
-
-void calcPSF(Mat& outputImg, Size filterSize, int len, double theta);
-void calcPSF(Mat& outputImg, Size filterSize, int len, double theta, Mat& temp);
-void calcPSF_circle(Mat& outputImg, Size filterSize, int len, double theta);
-void fftshift(const Mat& inputImg, Mat& outputImg);
-void filter2DFreq(const Mat& inputImg, Mat& outputImg, const Mat& H);
-void calcWnrFilter(const Mat& input_h_PSF, Mat& output_G, double nsr);
-void edgetaper(const Mat& inputImg, Mat& outputImg, double gamma = 5.0, double beta = 0.2);
-
-void GcalcPSF(cuda::GpuMat& outputImg, Size filterSize, Size filterSizeCpu, int len, double theta);
-//void GcalcPSF_circle(cuda::GpuMat& outputImg, Size filterSize, int len, double theta);
-void GcalcPSFCircle(cuda::GpuMat& outputImg, Size filterSize, int len, double theta);
-void Gfftshift(const cuda::GpuMat& inputImg, cuda::GpuMat& outputImg);
-void Gfilter2DFreq(const cuda::GpuMat& inputImg, cuda::GpuMat& outputImg, const cuda::GpuMat& H);
-void GcalcWnrFilter(const cuda::GpuMat& input_h_PSF, cuda::GpuMat& output_G, double nsr);
-
-void Gedgetaper(const cuda::GpuMat& inputImg, cuda::GpuMat& outputImg, double gamma = 5.0, double beta = 0.2);
+//void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& frame);
+//
+//void fixBorder(Mat& frame_stabilized, double frame_part);
+//
+//
+//void calcPSF(Mat& outputImg, Size filterSize, int len, double theta);
+//void calcPSF(Mat& outputImg, Size filterSize, int len, double theta, Mat& temp);
+//void calcPSF_circle(Mat& outputImg, Size filterSize, int len, double theta);
+//void fftshift(const Mat& inputImg, Mat& outputImg);
+//void filter2DFreq(const Mat& inputImg, Mat& outputImg, const Mat& H);
+//void calcWnrFilter(const Mat& input_h_PSF, Mat& output_G, double nsr);
+//void edgetaper(const Mat& inputImg, Mat& outputImg, double gamma = 5.0, double beta = 0.2);
+//
+//void GcalcPSF(cuda::GpuMat& outputImg, Size filterSize, Size filterSizeCpu, int len, double theta);
+////void GcalcPSF_circle(cuda::GpuMat& outputImg, Size filterSize, int len, double theta);
+//void GcalcPSFCircle(cuda::GpuMat& outputImg, Size filterSize, int len, double theta);
+//void Gfftshift(const cuda::GpuMat& inputImg, cuda::GpuMat& outputImg);
+//void Gfilter2DFreq(const cuda::GpuMat& inputImg, cuda::GpuMat& outputImg, const cuda::GpuMat& H);
+//void GcalcWnrFilter(const cuda::GpuMat& input_h_PSF, cuda::GpuMat& output_G, double nsr);
+//
+//void Gedgetaper(const cuda::GpuMat& inputImg, cuda::GpuMat& outputImg, double gamma = 5.0, double beta = 0.2);
 
 void calcPSF(Mat& outputImg, Size filterSize, int len, double theta)
 {
@@ -591,9 +589,9 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (kSwitch < 1.0)
 		tau_stab *= (4.0 + kSwitch) / 5.0;
 	
-	transforms[2].dx = (1.0 - 0.01) * transforms[2].dx + 0.01 * abs(transforms[1].dx); 
-	transforms[2].dy = (1.0 - 0.01) * transforms[2].dy + 0.01 * abs(transforms[1].dy);
-	transforms[2].da = (1.0 - 0.01) * transforms[2].da + 0.01 * abs(transforms[1].da);
+	transforms[2].dx = (1.0 - 0.05) * transforms[2].dx + 0.05 * abs(transforms[1].dx); 
+	transforms[2].dy = (1.0 - 0.05) * transforms[2].dy + 0.05 * abs(transforms[1].dy);
+	transforms[2].da = (1.0 - 0.05) * transforms[2].da + 0.05 * abs(transforms[1].da);
 
 	//if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
 	if (true)
@@ -1091,7 +1089,9 @@ int camera_calibration(int argc, char** argv) {
 	return 0;
 }
 
-bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda::GpuMat gCrossRef, const double& a, const double& b, double& nsr, bool& wiener, bool& threadwiener, double& Q, double& tauStab, double& framePart, Rect& roi)
+bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda::GpuMat gCrossRef, 
+	const double& a, const double& b, double& nsr, bool& wiener, bool& threadwiener, double& Q, 
+	double& tauStab, double& framePart, Rect& roi)
 {
 	if (keyboard == 'c')
 	{
@@ -1151,6 +1151,9 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 			roi.y = b * ((1.0 - framePart) / 2.0);
 			roi.width = a * framePart;
 			roi.height = b * framePart;
+
+			
+
 			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
 			cv::rectangle(crossRef, roi, Scalar(0,10,20), -1); // покрасили в один цвет
 			cv::rectangle(crossRef, roi, colorGREEN, 2); // покрасили в один цвет
@@ -1179,4 +1182,38 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 		}
 	}
 	return false;
+}
+
+static const int aboba = 1;
+
+void showServiceInfo(Mat& writerFrame, double Q, double nsr, bool wiener, bool threadwiener, bool stabPossible, vector <TransformParam> transforms, vector <TransformParam> velocity, 
+	double tauStab, double kSwitch, double framePart, int gP0_cols, int maxCorners,
+	double seconds, double secondsPing, double secondsFullPing, int a, int b, vector <Point> textOrg, vector <Point> textOrgOrig, vector <Point> textOrgCrop, vector <Point> textOrgStab,
+	int fontFace, double fontScale, Scalar color)
+{
+	unsigned short temp_i = 0;
+	//cv::putText(writerFrame, format("WnrFltr Q[5][6] = %2.1f, SNR[7][8] = %2.1f", Q, 1 / nsr),
+		//textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wiener, threadwiener, stabPossible),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("[X Y Roll] %2.1f %2.1f %2.1f]", transforms[2].dx, transforms[2].dy, transforms[2].da* RAD_TO_DEG),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	/*cv::putText(writerFrame, format("[dX dY dRoll] %2.2f %2.2f %2.2f]", transforms[0].dx, transforms[0].dy, transforms[0].da),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("[skoX skoY skoRoll] %2.2f %2.2f %2.2f]", transforms[3].dx, transforms[3].dy, transforms[3].da),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("[vX vY vRoll] %2.2f %2.2f %2.2f]", velocity[0].dx, velocity[0].dy, velocity[0].da),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("Filter time[3][4]= %3.0f frames, filter power = %1.2f", tauStab, kSwitch),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;*/
+	cv::putText(writerFrame, format("Crop[w][s] = %2.2f, %d Current corners of %d.", 1 / framePart, gP0_cols, maxCorners),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("FPS = %2.1f, GPU time = %1.3f ms, Ping = %1.3f ms.", 1 / seconds, secondsPing, secondsFullPing),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("Image resolution: %d x %d.", a, b),
+		textOrg[temp_i], fontFace, fontScale / 1.2, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("ORIGINAL VIDEO"), textOrgOrig[0], fontFace, fontScale * 1.3, color, 2, 8, false);
+	cv::putText(writerFrame, format("Stab OFF"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
+	cv::putText(writerFrame, format("Stab ON"), textOrgStab[0], fontFace, fontScale * 1.3, color, 2, 8, false);
+
 }
