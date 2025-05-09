@@ -2,51 +2,38 @@
 //Алгоритм стабилизации видео на основе вычисление Lucas-Kanade Optical Flow
 //
 
-#include <iostream> 
-#include <fstream>
-#include <opencv2/opencv.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/cudaoptflow.hpp> 
-
-#include <opencv2/cudawarping.hpp>
-#include <opencv2/core/cuda.hpp>
-
-
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudafilters.hpp>
-
-
-#include <opencv2/core.hpp>
-#include <opencv2/videoio.hpp>
-#include <opencv2/highgui.hpp>
-#include <iostream>
-#include <stdio.h>
-
-#include <thread>
-#include <mutex>
-
 #include "opencv2/video/tracking.hpp"
-
-#include <opencv2/dnn.hpp>
-
-
-#include <opencv2/opencv.hpp>
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudafeatures2d.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <vector>
 #include <cmath>
-
-
+#include <fstream>
 #include <iostream>
+#include <mutex>
 #include <opencv2/calib3d.hpp>
 #include <opencv2/core.hpp>
+#include <opencv2/core/cuda.hpp>
+#include <opencv2/cudaarithm.hpp>
+#include <opencv2/cudafeatures2d.hpp>
+#include <opencv2/cudafilters.hpp>
+#include <opencv2/cudaimgproc.hpp>
+#include <opencv2/cudaoptflow.hpp> 
+#include <opencv2/cudawarping.hpp>
+#include <opencv2/dnn.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <opencv2/opencv.hpp>
+#include <opencv2/videoio.hpp>
+#include <stdio.h>
+#include <thread>
+#include <vector>
 // 
 //#include <opencv2/cudev/ptr2d/warping.hpp>
 using namespace cv;
 using namespace std;
+
+
+Scalar colorRED(48, 62, 255);
+Scalar colorGREEN(82, 156, 23);
+Scalar colorBLUE(239, 107, 23);
+Scalar colorWHITE(255, 255, 255);
 
 
 static void download(const cuda::GpuMat& d_mat, vector<Point2f>& vec);
@@ -1165,10 +1152,10 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 			roi.width = a * framePart;
 			roi.height = b * framePart;
 			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
-			cv::rectangle(crossRef, roi, Scalar(0, 0, 50), -1); // покрасили в один цвет
-			cv::rectangle(crossRef, roi, Scalar(200, 200, 200), 2); // покрасили в один цвет
-			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, Scalar(200, 200, 200), 2);
-			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(0, b * framePart / 8), 0.0, 0, 360, Scalar(200, 200, 200), 2);
+			cv::rectangle(crossRef, roi, Scalar(0,10,20), -1); // покрасили в один цвет
+			cv::rectangle(crossRef, roi, colorGREEN, 2); // покрасили в один цвет
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, colorRED, 2);
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(0, b * framePart / 8), 0.0, 0, 360, colorRED, 2);
 			gCrossRef.upload(crossRef);
 		}
 	}
@@ -1184,10 +1171,10 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 			roi.width = a * framePart;
 			roi.height = b * framePart;
 			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
-			cv::rectangle(crossRef, roi, Scalar(0, 0, 50), -1); // покрасили в один цвет
-			cv::rectangle(crossRef, roi, Scalar(200, 200, 200), 2); // покрасили в один цвет
-			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, Scalar(200, 200, 200), 2);
-			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(0, b * framePart / 8), 0.0, 0, 360, Scalar(200, 200, 200), 2);
+			cv::rectangle(crossRef, roi, Scalar(0, 10, 20), -1); // покрасили в один цвет
+			cv::rectangle(crossRef, roi, colorGREEN, 2); // покрасили в один цвет
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, colorRED, 2);
+			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(0, b * framePart / 8), 0.0, 0, 360, colorRED, 2);
 			gCrossRef.upload(crossRef);
 		}
 	}

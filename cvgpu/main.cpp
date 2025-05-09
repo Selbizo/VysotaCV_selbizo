@@ -64,7 +64,6 @@ int main()
 
 	Point2f d = Point2f(0.0f, 0.0f);
 	Mat T, TStab(2, 3, CV_64F), TStabInv(2, 3, CV_64F);
-	//Mat T3d, T3dStab(3, 4, CV_64F);
 	cuda::GpuMat gT, gTStab(2, 3, CV_64F);
 
 
@@ -218,10 +217,7 @@ int main()
 	int fontFace = FONT_HERSHEY_SIMPLEX;
 	double fontScale = 2.0;
 	Scalar color(82, 156, 23);
-	Scalar colorRED(48, 62, 255);
-	Scalar colorGREEN(82, 156, 23);
-	Scalar colorBLUE(239, 107, 23);
-	Scalar colorWHITE(255, 255, 255);
+
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	//Mat mask_host = Mat::zeros(cv::Size(a, b), CV_8U); //orig
@@ -480,31 +476,27 @@ int main()
 
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b)); //8ms
 
-			gFrameStabilizatedCrop = gFrameStabilized(roi); 
+			gFrameStabilizatedCrop = gFrameStabilized(roi);  
 			cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST); //8ms
-			endPing = clock();
 			
 			gFrameStabilizatedCropResized.download(frameStabilizatedCropResized); //9 ms
-			//frameStabilizatedCropResized(cv::Rect(0, 0, a, textOrg[temp_i].y)) *= 0.3;
+			endPing = clock();
 						
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
 			if (writeVideo)
 			{
-				frameStabilizatedCropResized.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
+				frameStabilizatedCropResized.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
 				
 				gFrameOut = gFrame(roi); //without stab
 				cuda::resize(gFrameOut, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST); //8ms
-				//gFrame.download(frame); //9 ms
-
+				gFrameOut.download(frameOut);
+				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b))); //5ms
+				
 				cuda::warpAffine(gCrossRef, gCross, TStabInv, cv::Size(a, b));
-
 				cuda::add(gFrame, gCross, gFrameShowOrig);
 				gFrameShowOrig.download(frameShowOrig);
-				gFrameOut.download(frameOut);
-				
 				frameShowOrig.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
-				frameOut.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
-				frame.copyTo(writerFrame(cv::Rect(0, b, a, b))); //5ms
+
 
 				if (p0.size() > 0)
 					for (uint i = 0; i < p0.size(); i++)
@@ -542,7 +534,7 @@ int main()
 				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				cv::imshow("Writed", writerFrameToShow);
 			}
-			else {
+			if(!writeVideo) {
 				cv::resize(frameStabilizatedCropResized, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				temp_i = 0;
 				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), 
@@ -573,7 +565,8 @@ int main()
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b));
 			
 
-			gFrameStabilizatedCrop = gFrameStabilized(roi);
+			//gFrameStabilizatedCrop = gFrameStabilized(roi);
+			gFrameStabilizatedCrop = gFrameStabilized;
 
 			cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
 			gFrameStabilizatedCropResized.download(frameStabilizatedCropResized);
@@ -582,17 +575,17 @@ int main()
 			endPing = clock();
 			if (writeVideo)
 			{
-				gFrame = gFrame(roi);
-				cuda::resize(gFrame, gFrame, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
+				gFrameOut = gFrame(roi);
+				cuda::resize(gFrameOut, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
 				cuda::warpAffine(gCrossRef, gCross, TStab, cv::Size(a, b));
 
-				gFrame.download(frameOut);
+				gFrameOut.download(frameOut);
 				//cv::add(frame, cross, frame);
 				
 				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 
-				frameOut.copyTo(writerFrame(cv::Rect(0, 0, frame.cols, frame.rows)));
-				frameStabilizatedCropResized.copyTo(writerFrame(cv::Rect(0, frame.rows, frame.cols, frame.rows)));
+				frameOut.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
+				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b)));
 
 				temp_i = 0;
 				cv::putText(writerFrame, format("NOT GOOD. WnrFltr Q[5][6] = % 2.1f, SNR[7][8] = % 2.1f", Q, 1 / nsr),
