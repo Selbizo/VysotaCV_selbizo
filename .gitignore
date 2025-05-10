@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 *.avi
 *.jpg
+*.zip
+*.mp4
+*.txt
