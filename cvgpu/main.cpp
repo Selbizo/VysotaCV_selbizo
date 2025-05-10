@@ -1,6 +1,6 @@
 ﻿//Алгоритм стабилизации видео на основе вычисление Lucas-Kanade Optical Flow
 
-#include "testGpuFunctions.hpp"
+#include "allFunctions.hpp"
 #include "wienerFilter.hpp"
 
 using namespace cv;
@@ -13,10 +13,10 @@ int main()
 	//string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "http://192.168.0.100:4747/video"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "./SourceVideos/treeshd.mp4"; // pad6-100, pixel4-101, pixel-102
-	string videoSource = "./SourceVideos/treesfhd.mp4"; // pad6-100, pixel4-101, pixel-102
+	//string videoSource = "./SourceVideos/treesfhd.mp4"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "./SourceVideos/trees4k.mp4"; // pad6-100, pixel4-101, pixel-102
 	//string videoSource = "./SourceVideos/Pixel_Vysota_VID_1.mp4"; // pad6-100, pixel4-101, pixel-102
-	//int videoSource = 0;
+	int videoSource = 0;
 
 	bool writeVideo = true;
 	bool stabPossible = false;
