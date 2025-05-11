@@ -1,3 +1,4 @@
+//конфигурация для запуска main.cpp
 #pragma once
 #include <fstream>
 #include <iostream>
@@ -23,10 +24,10 @@ using namespace std;
 //string videoSource = "./SourceVideos/Pixel_Vysota_parkfhd60fps.mp4"; // pad6-100, pixel4-101, pixel-102
 int videoSource = 0;
 
-bool writeVideo = true;
+bool writeVideo = false;
 bool stabPossible = false;
 
-const int compression = 2; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
+const int compression = 1; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
 
 //переменные для поиска характерных точек
 int	srcType = CV_8UC1;

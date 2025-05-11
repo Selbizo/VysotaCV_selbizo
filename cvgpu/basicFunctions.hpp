@@ -28,6 +28,8 @@ Scalar colorRED(48, 62, 255);
 Scalar colorGREEN(82, 156, 23);
 Scalar colorBLUE(239, 107, 23);
 Scalar colorWHITE(255, 255, 255);
+Scalar ColorBLACK(0, 0, 0);
+
 
 struct TransformParam
 {
@@ -68,8 +70,6 @@ struct TransformParam
 	}
 };
 
-
-
 static void download(const cuda::GpuMat& d_mat, vector<Point2f>& vec)
 {
 	vec.resize(d_mat.cols);
@@ -83,7 +83,6 @@ static void download(const cuda::GpuMat& d_mat, vector<uchar>& vec)
 	Mat mat(1, d_mat.cols, CV_8UC1, (void*)&vec[0]);
 	d_mat.download(mat);
 }
-
 
 int camera_calibration(int argc, char** argv) {
 
@@ -204,8 +203,8 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 {
 	if (keyboard == 'c')
 	{
-		imwrite("imgInCam.jpg", frame);
-		imwrite("imgOutCam.jpg", croppedImg);
+		imwrite("./OutputResults/imgInCam.jpg", frame);
+		imwrite("./OutputResults/imgOutCam.jpg", croppedImg);
 	}
 	if (keyboard == 'q' || keyboard == 27)
 		return true;
@@ -260,8 +259,6 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 			roi.y = b * ((1.0 - framePart) / 2.0);
 			roi.width = a * framePart;
 			roi.height = b * framePart;
-
-
 
 			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
 			cv::rectangle(crossRef, roi, Scalar(0, 10, 20), -1); // покрасили в один цвет

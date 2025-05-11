@@ -61,8 +61,6 @@ int main()
 		velocity[i].da = 0.0;
 	}
 
-	//для гомографии
-
 	// переменные для фильтра Виннера
 	Mat Hw, h, gray_wiener;
 	cuda::GpuMat gHw, gH, gGrayWiener;
@@ -138,7 +136,6 @@ int main()
 	roi.width = a * framePart;
 	roi.height = b * framePart;
 
-
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~для вывода изображения на дисплей~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat frameStabilizatedCropResized(a, b, CV_8UC3), frame_crop;
 	cuda::GpuMat gFrameStabilizatedCrop(roi.width, roi.height, CV_8UC3), 
@@ -159,7 +156,6 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Для отображения надписей на кадре~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	int fontFace = FONT_HERSHEY_SIMPLEX;
 	double fontScale = 1.7*b/1080;
-	//Scalar color(82, 156, 23);
 
 	setlocale(LC_ALL, "RU");
 
@@ -194,7 +190,6 @@ int main()
 
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	//Mat mask_host = Mat::zeros(cv::Size(a, b), CV_8U); //orig
 	Mat mask_host = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
 	cv::rectangle(mask_host, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
 		Scalar(255), FILLED); // Прямоугольная маска
@@ -217,7 +212,6 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Запись заголовка в CSV файл
 
 	outputFile << "FrameNumber\tdx\tdy\tX\tY\ttr2x\ttr2y\ttr3x\ttr3y" << endl;
-	//outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx << "\t" << transforms[1].dy << transforms[2].dx << "\t" << transforms[2].dy << transforms[3].dx << "\t" << transforms[3].dy << endl;
 	int frameCount = 0;
 	unsigned short temp_i = 0;
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~СОЗДАНИЕ ЭКЗЕМПЛЯРА КЛАССА ЗАПИСИ ВИДЕО
@@ -227,14 +221,11 @@ int main()
 
 	if (writeVideo) {
 		bool isColor = (oldFrame.type() == CV_8UC3);
-		//~~~~~~~~~~~~~~~~~~~~~~~~~~~INITIALIZE VIDEOWRITER~~~~~~~~~~~~~~~~~~~~~~~~~~~
+		int codec = VideoWriter::fourcc('D', 'I', 'V', 'X');
 
-		//int codec = VideoWriter::fourcc('M', 'J', 'P', 'G'); // select desired codec (must be available at runtime)
-		int codec = VideoWriter::fourcc('D', 'I', 'V', 'X'); // select desired codec (must be available at runtime)
-
-		double fps = 60.0; // framerate of the created video stream
-		string filename = "./OutputVideos/TestVideo.avi"; // name of the output video file
-		string filenameSmall = "./OutputVideos/StabilizatedVideo.avi"; // name of the output video file
+		double fps = 30.0; 
+		string filename = "./OutputVideos/TestVideo.avi"; 
+		string filenameSmall = "./OutputVideos/StabilizatedVideo.avi";
 
 		writer.open(filename, codec, fps, writerFrame.size(), isColor);
 		if (!writer.isOpened()) {
@@ -297,7 +288,7 @@ int main()
 			}else if (kSwitch > 1.0)
 				kSwitch = 1.0;
 
-			capture >> frame; //нужно для .upload(frame)
+			capture >> frame;
 		}
 
 		if (frameCnt % 64 == 1)
@@ -317,9 +308,8 @@ int main()
 
 
 		if (writeVideo && stabPossible) {
-			//cv::putText(frame, format("Raw Video Stream"), textOrg[9], fontFace, fontScale, color, 2, 8, false);
-			cv::rectangle(writerFrame, Rect(a, b, a, b), Scalar(50, 50, 50), FILLED); // покрасили в один цвет
-			//frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
+			
+			cv::rectangle(writerFrame, Rect(a, b, a, b), ColorBLACK, FILLED); // покрасили в один цвет
 		}
 		frameCnt++;
 
