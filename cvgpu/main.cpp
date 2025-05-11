@@ -1,27 +1,17 @@
 ﻿//Алгоритм стабилизации видео на основе вычисление Lucas-Kanade Optical Flow
 
-#include "allFunctions.hpp"
+#include "Config.hpp"
+
+#include "basicFunctions.hpp"
+#include "stabilizationFunctions.hpp"
 #include "wienerFilter.hpp"
+
 
 using namespace cv;
 using namespace std;
 
 int main()
 {
-	//string videoSource = "http://192.168.0.102:4747/video"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "http://10.108.144.71:4747/video"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "http://192.168.0.100:4747/video"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "./SourceVideos/treeshd.mp4"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "./SourceVideos/treesfhd.mp4"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "./SourceVideos/trees4k.mp4"; // pad6-100, pixel4-101, pixel-102
-	//string videoSource = "./SourceVideos/Pixel_Vysota_VID_1.mp4"; // pad6-100, pixel4-101, pixel-102
-	int videoSource = 0;
-
-	bool writeVideo = true;
-	bool stabPossible = false;
-	unsigned short temp_i = 0;
-
 	// Создадим массив случайных цветов для цветов характерных точек
 	vector<Scalar> colors;
 	RNG rng;
@@ -32,32 +22,15 @@ int main()
 		unsigned short r = rng.uniform(165, 225);
 		colors.push_back(Scalar(b, g, r));
 	}
-	// переменные для поиска характерных точек
-	const int compression = 2; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
-	vector<uchar> status;
-	Mat err;
-
-	int	srcType = CV_8UC1;
-	int maxCorners = 400 / compression; //100/n
-	double qualityLevel = 0.003 / compression; //0.0001
-	double minDistance = 6.0 /compression + 2.0; //8.0
-	int blockSize = 35 / compression + 10; //45 80 максимальное значение окна
-	bool useHarrisDetector = true;
-	double harrisK = qualityLevel;
-
+	// детектор для поиска характерных точек
 	Ptr<cuda::CornersDetector > d_features = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
 		maxCorners, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
 
-	// переменные для оптического потока
-	bool useGray = true;
-	int winSize = blockSize;
-	int maxLevel = 5;
-	int iters = 10;
-	double minDist = minDistance;
+
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
 
-	Mat oldFrame, oldGray;
+	Mat oldFrame, oldGray, err;
 
 	vector<Point2f> p0, p1, good_new;
 	cuda::GpuMat gP0, gP1;
@@ -67,7 +40,7 @@ int main()
 	cuda::GpuMat gT, gTStab(2, 3, CV_64F);
 
 
-	Mat frameStabilized;
+	vector<uchar> status;
 	cuda::GpuMat gStatus, gErr;
 	double tauStab = 100.0;
 	double kSwitch = 0.001;
@@ -186,7 +159,7 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Для отображения надписей на кадре~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	int fontFace = FONT_HERSHEY_SIMPLEX;
 	double fontScale = 1.7*b/1080;
-	Scalar color(82, 156, 23);
+	//Scalar color(82, 156, 23);
 
 	setlocale(LC_ALL, "RU");
 
@@ -246,7 +219,7 @@ int main()
 	outputFile << "FrameNumber\tdx\tdy\tX\tY\ttr2x\ttr2y\ttr3x\ttr3y" << endl;
 	//outputFile << frameCount << "\t" << xDev << "\t" << yDev << "\t" << transforms[1].dx << "\t" << transforms[1].dy << transforms[2].dx << "\t" << transforms[2].dy << transforms[3].dx << "\t" << transforms[3].dy << endl;
 	int frameCount = 0;
-	
+	unsigned short temp_i = 0;
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~СОЗДАНИЕ ЭКЗЕМПЛЯРА КЛАССА ЗАПИСИ ВИДЕО
 	VideoWriter writer, writerSmall;
 	cv::Mat writerFrame(oldFrame.rows * 2, oldFrame.cols * 2, CV_8UC3), writerFrameSmall(oldFrame.rows, oldFrame.cols, CV_8UC3);
@@ -259,7 +232,7 @@ int main()
 		//int codec = VideoWriter::fourcc('M', 'J', 'P', 'G'); // select desired codec (must be available at runtime)
 		int codec = VideoWriter::fourcc('D', 'I', 'V', 'X'); // select desired codec (must be available at runtime)
 
-		double fps = 30.0; // framerate of the created video stream
+		double fps = 60.0; // framerate of the created video stream
 		string filename = "./OutputVideos/TestVideo.avi"; // name of the output video file
 		string filenameSmall = "./OutputVideos/StabilizatedVideo.avi"; // name of the output video file
 
@@ -303,7 +276,7 @@ int main()
 				}
 			}
 
-			if (p1.size() < double(maxCorners * 5 / 7) && rng.uniform(0.0, 1.0) < 0.8)
+			if (p1.size() < double(maxCorners * 5 / 7) && rng.uniform(0.0, 1.0) < 0.9)
 			{
 				for (uint i = 0; i < abs((int)(velocity[0].dx + velocity[0].dy))*2 + 1; ++i)
 				{
@@ -415,7 +388,7 @@ int main()
 		if (stabPossible) {
 			download(gStatus, status);
 			getBiasAndRotation(p0, p1, d, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
-			iirAdaptive(transforms, tauStab, roi, a, b, kSwitch, velocity);
+			iirAdaptive(transforms, tauStab, roi, a, b, c, kSwitch, velocity);
 			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart);
 			transforms[1].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart);
 
@@ -505,7 +478,7 @@ int main()
 								
 				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, velocity, tauStab, kSwitch, framePart, gP0.cols, maxCorners, 
 					seconds, secondsPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab, 
-					fontFace, fontScale, color);
+					fontFace, fontScale, colorGREEN);
 
 				writer.write(writerFrame);
 				writerSmall.write(frameStabilizatedCropResized);
@@ -518,7 +491,7 @@ int main()
 				temp_i = 0;
 				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), 
 				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsPing, secondsFullPing, a, b),
-					textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
+					textOrg[temp_i], fontFace, fontScale / 2, colorGREEN, 2, 8, false); ++temp_i;
 				//cv::putText(writerFrameToShow, format("Wiener[1] %d, thread[t] %d, Q[5][6] = %2.1f, SNR[7][8] = %2.1f", wiener, threadwiener, Q, 1 / nsr),
 				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
 				//cv::putText(writerFrameToShow, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), RAD_TO_DEG * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
@@ -528,7 +501,7 @@ int main()
 				//cv::putText(writerFrameToShow, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), 
 				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
 				cv::putText(writerFrameToShow, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners),
-					textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
+					textOrg[temp_i], fontFace, fontScale / 2, colorGREEN, 2, 8, false); ++temp_i;
 				
 				cv::imshow("Writed", writerFrameToShow);
 			}
@@ -592,7 +565,7 @@ int main()
 				//cv::putText(frameStabilizatedCropResized, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch),
 				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
 				cv::putText(writerFrameToShow, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners),
-					textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
+					textOrg[temp_i], fontFace, fontScale / 2, colorGREEN, 2, 8, false); ++temp_i;
 
 				cv::imshow("Writed", writerFrameToShow);
 			}
@@ -609,135 +582,3 @@ int main()
 	capture.release();
 	return 0;
 }
-
-//#include <opencv2/opencv.hpp>
-//#include <opencv2/cudaarithm.hpp>
-//#include <opencv2/cudafeatures2d.hpp>
-//#include <opencv2/cudaimgproc.hpp>
-//#include <chrono>
-//
-//using namespace cv;
-//using namespace std;
-//using namespace std::chrono;
-//
-//class DroneSpeedEstimator {
-//private:
-// // CUDA объекты
-// Ptr<cuda::ORB> orb;
-// Ptr<cuda::DescriptorMatcher> matcher;
-// cuda::GpuMat prevFrame, prevGray;
-// vector<Point2f> prevPoints;
-// double focalLength; // Фокусное расстояние в пикселях
-// double altitude; // Высота в метрах
-// double scaleFactor; // Масштабный коэффициент (пиксели/метр)
-// high_resolution_clock::time_point prevTime;
-//
-//public:
-// DroneSpeedEstimator(double focal, double alt)
-// : focalLength(focal), altitude(alt) {
-// // Инициализация детектора ORB на GPU
-// orb = cuda::ORB::create(1000);
-// matcher = cuda::DescriptorMatcher::createBFMatcher(NORM_HAMMING);
-//
-// // Расчет масштабного коэффициента
-// scaleFactor = focalLength / altitude;
-// prevTime = high_resolution_clock::now();
-// }
-//
-// double estimateSpeed(const Mat& frame) {
-// auto currTime = high_resolution_clock::now();
-// double timeDelta = duration_cast<milliseconds>(currTime - prevTime).count() / 1000.0;
-// prevTime = currTime;
-//
-// cuda::GpuMat d_frame, d_gray, d_keypoints, d_descriptors;
-// vector<KeyPoint> keypoints;
-// Mat descriptors;
-//
-// // Загрузка кадра на GPU
-// d_frame.upload(frame);
-// cuda::cvtColor(d_frame, d_gray, COLOR_BGR2GRAY);
-//
-// // Первый кадр - инициализация
-// if (prevPoints.empty()) {
-// orb->detectAndComputeAsync(d_gray, noArray(), d_keypoints, d_descriptors);
-// orb->convert(d_keypoints, keypoints);
-// KeyPoint::convert(keypoints, prevPoints);
-// prevGray = d_gray.clone();
-// return 0.0;
-// }
-//
-// // Находим ключевые точки в текущем кадре
-// orb->detectAndComputeAsync(d_gray, noArray(), d_keypoints, d_descriptors);
-// orb->convert(d_keypoints, keypoints);
-//
-// vector<Point2f> currPoints;
-// KeyPoint::convert(keypoints, currPoints);
-//
-// // Находим соответствия точек
-// vector<DMatch> matches;
-// matcher->match(d_descriptors, matches);
-//
-// // Фильтрация хороших соответствий
-// vector<Point2f> goodPrev, goodCurr;
-// for (size_t i = 0; i < matches.size(); i++) {
-// if (matches[i].distance < 25.0) {
-// goodPrev.push_back(prevPoints[matches[i].queryIdx]);
-// goodCurr.push_back(currPoints[matches[i].trainIdx]);
-// }
-// }
-//
-// // Рассчитываем среднее смещение точек
-// double totalDisplacement = 0.0;
-// int validPoints = 0;
-//
-// for (size_t i = 0; i < goodPrev.size(); i++) {
-// double dx = goodCurr[i].x - goodPrev[i].x;
-// double dy = goodCurr[i].y - goodPrev[i].y;
-// totalDisplacement += sqrt(dx * dx + dy * dy);
-// validPoints++;
-// }
-//
-// if (validPoints == 0) return 0.0;
-//
-// // Среднее смещение в пикселях
-// double meanDisplacement = totalDisplacement / validPoints;
-//
-// // Переводим смещение в метры и вычисляем скорость
-// double groundDisplacement = meanDisplacement / scaleFactor; // в метрах
-// double speed = groundDisplacement / timeDelta; // м/с
-//
-// // Обновляем данные для следующего кадра
-// prevGray = d_gray.clone();
-// prevPoints = currPoints;
-//
-// return speed;
-// }
-//};
-//
-//int main() {
-// // Параметры камеры (пример для DJI Phantom 4 Pro)
-// double focalLengthPx = 3820; // Фокусное расстояние в пикселях
-// double altitude = 50.0; // Высота полета в метрах
-//
-// DroneSpeedEstimator speedEstimator(focalLengthPx, altitude);
-//
-// VideoCapture cap(0);
-// if (!cap.isOpened()) {
-// cerr << "Error opening video file" << endl;
-// return -1;
-// }
-//
-// Mat frame;
-// while (cap.read(frame)) {
-// double speed = speedEstimator.estimateSpeed(frame);
-// /*cout << "Estimated speed: " << speed << " m/s ("
-// << speed * 3.6 << " km/h)" << endl;*/
-//
-// putText(frame, format("Speed: %.2f m/s", speed),
-// Point(20, 40), FONT_HERSHEY_SIMPLEX, 1, Scalar(0, 255, 0), 2);
-// imshow("Drone View", frame);
-// if (waitKey(1) == 27) break;
-// }
-//
-// return 0;
-//}

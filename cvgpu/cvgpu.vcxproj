@@ -206,7 +206,10 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="allFunctions.hpp" />
+    <ClInclude Include="Config.hpp" />
+    <ClInclude Include="sandboxFunctionsDev.hpp" />
+    <ClInclude Include="basicFunctions.hpp" />
+    <ClInclude Include="stabilizationFunctions.hpp" />
     <ClInclude Include="wienerFilter.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
