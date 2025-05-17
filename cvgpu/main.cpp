@@ -79,18 +79,19 @@ int main()
 	vector<cuda::GpuMat> gChannels(3), gChannelsWiener(3);
 	cuda::GpuMat gFrameWiener;
 
-
 	// ~~~~~~~~~~~~~~~~~~~~~~~~~~~ для счетчика кадров в секунду ~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 	unsigned int frameCnt = 0;
 	double seconds = 0.05;
-	double secondsPing = 0.0;
+	double secondsGPUPing = 0.0;
 	double secondsFullPing = 0.0;
 	clock_t start = clock();
 	clock_t end = clock();
 
-	clock_t startPing = clock();
-	clock_t endPing = clock();
+	clock_t startFullPing = clock();
 	clock_t endFullPing = clock();
+
+	clock_t startGPUPing = clock();
+	clock_t endGPUPing = clock();
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Захват первого кадра ~~~~~~~~~~~~~~~~~~~~~~~~~~~//
 	//~~~~~~~~~~~~~~~~~~~~~~для ситывания параметров видеопотока~~~~~~~~~~~~~~~~~//
@@ -118,7 +119,7 @@ int main()
 	const double atan_ba = atan2(b, a);
 
 	//переменные для запоминания кадров и характерных точек
-	Mat frame(a, b, CV_8UC3), frameShowOrig(a, b, CV_8UC3), gray, temp, compressed, oldCompressed, frameOut;
+	Mat frame(a, b, CV_8UC3), frameShowOrig(a, b, CV_8UC3), frameOut(a, b, CV_8UC3);
 	cuda::GpuMat gFrameStabilized(a, b, CV_8UC3);
 
 	cuda::GpuMat gFrame(a,b, CV_8UC3), gFrameShowOrig(a, b, CV_8UC3),
@@ -139,11 +140,13 @@ int main()
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~для вывода изображения на дисплей~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat frameStabilizatedCropResized(a, b, CV_8UC3), frame_crop;
 	cuda::GpuMat gFrameStabilizatedCrop(roi.width, roi.height, CV_8UC3), 
-		gFrameOut(roi.width, roi.height, CV_8UC3),
-		gFrameStabilizatedCropResized(a, b, CV_8UC3);
+		gFrameRoi(roi.width, roi.height, CV_8UC3),
+		gFrameOut(a, b, CV_8UC3),
+		gFrameStabilizatedCropResized(a, b, CV_8UC3),
+		gWriterFrameToShow(1080*a/b, 1080, CV_8UC3);
 
 	Mat crossRef(b, a, CV_8UC3), cross(b, a, CV_8UC3);
-	cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+	crossRef.setTo(colorBLACK); // покрасили в один цвет
 	cv::rectangle(crossRef, roi, Scalar(0, 10, 20), -1); // покрасили в один цвет
 	cv::rectangle(crossRef, roi, colorGREEN, 2); // покрасили в один цвет
 	cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, colorRED, 2);
@@ -251,11 +254,11 @@ int main()
 	}
 
 	while (true) {
-		secondsPing = 0.96 * secondsPing + 0.04 * (double)(endPing - startPing) / CLOCKS_PER_SEC;
-		secondsFullPing = 0.96 * secondsFullPing + 0.04 * (double)(endFullPing - startPing) / CLOCKS_PER_SEC;
+		secondsFullPing = 0.96 * secondsFullPing + 0.04 * (double)(endFullPing - startFullPing) / CLOCKS_PER_SEC;
 		++frameCount;
-		startPing = clock();
+		startFullPing = clock();
 
+		secondsGPUPing = 0.96 * secondsGPUPing + 0.04 * (double)(endGPUPing - startGPUPing) / CLOCKS_PER_SEC;
 		if (stabPossible) {
 			p0.clear();
 			for (uint i = 0; i < p1.size(); ++i)
@@ -291,13 +294,12 @@ int main()
 			capture >> frame;
 		}
 
-		if (frameCnt % 64 == 1)
+		if (frameCnt % 128 == 1)
 		{
 			end = clock();
-			seconds = (double)(end - start) / CLOCKS_PER_SEC / 64;
+			seconds = (double)(end - start) / CLOCKS_PER_SEC / 128;
 			start = clock();
 		}
-
 
 		if (frame.empty())
 		{
@@ -306,19 +308,19 @@ int main()
 			capture >> frame;
 		}
 
-
-		if (writeVideo && stabPossible) {
-			
-			cv::rectangle(writerFrame, Rect(a, b, a, b), ColorBLACK, FILLED); // покрасили в один цвет
+		if (writeVideo && stabPossible) 
+		{
+			writerFrame.setTo(colorBLACK);
 		}
 		frameCnt++;
 
+		startGPUPing = clock();
 		if (stabPossible) {
 			gFrame.upload(frame);
 
 			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_AREA); //лучший метод для понижения разрешения
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
-			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
+			cuda::bilateralFilter(gGray, gGray, 5, 5.0, 5.0);
 		}
 
 		if ((gP0.cols < maxCorners * 1 / 5) || !stabPossible)
@@ -344,7 +346,7 @@ int main()
 			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_AREA);
 
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
-			cuda::bilateralFilter(gGray, gGray, 3, 3.0, 1.0);
+			cuda::bilateralFilter(gGray, gGray, 5, 5.0, 5.0);
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
@@ -353,7 +355,7 @@ int main()
 					kSwitch, a, b, compression , mask_device, stabPossible); //70ms
 			} 
 			else
-				initFirstFrameZero(oldFrame, oldCompressed, gOldFrame, gOldGray, gOldCompressed, 
+				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gOldCompressed, 
 					gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
 					kSwitch, a, b, compression , mask_device, stabPossible); //70ms
 
@@ -404,7 +406,7 @@ int main()
 				else
 					THETA = atan(transforms[0].dy / transforms[0].dx) * 180.0 / 3.14159;
 
-				cuda::bilateralFilter(gFrame, gFrame, 13, 5.0, 3.0);
+				cuda::bilateralFilter(gFrame, gFrame, 5, 5.0, 5.0);
 				gFrame.convertTo(gFrame, CV_32F);
 				cuda::split(gFrame, gChannels);
 
@@ -435,24 +437,25 @@ int main()
 				}
 				cuda::merge(gChannelsWiener, gFrame);
 				gFrame.convertTo(gFrame, CV_8UC3);
-				cuda::bilateralFilter(gFrame, gFrame, 13, 5.0, 3.0);
+				cuda::bilateralFilter(gFrame, gFrame, 5, 5.0, 5.0);
 			}
 
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b)); //8ms
 
 			gFrameStabilizatedCrop = gFrameStabilized(roi);  
-			cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
 			
-			gFrameStabilizatedCropResized.download(frameStabilizatedCropResized); //9 ms
-			endPing = clock();
+			endGPUPing = clock();
 						
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
 			if (writeVideo)
 			{
+				cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
+				gFrameStabilizatedCropResized.download(frameStabilizatedCropResized); //9 ms
+				
 				frameStabilizatedCropResized.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
 				
-				gFrameOut = gFrame(roi); //without stab
-				cuda::resize(gFrameOut, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
+				gFrameRoi = gFrame(roi); //without stab
+				cuda::resize(gFrameRoi, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST); //8ms
 				gFrameOut.download(frameOut);
 				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b))); //5ms
 				
@@ -467,21 +470,23 @@ int main()
 						circle(writerFrame, cv::Point2f(p1[i].x*compression + a, p1[i].y*compression), 4, colors[i], -1);
 								
 				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, velocity, tauStab, kSwitch, framePart, gP0.cols, maxCorners, 
-					seconds, secondsPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab, 
+					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab, 
 					fontFace, fontScale, colorGREEN);
 
 				writer.write(writerFrame);
 				writerSmall.write(frameStabilizatedCropResized);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				cv::imshow("Writed", writerFrameToShow);
 				//writer.write(writerFrameToShow);
 			}
 			if(!writeVideo) {
-				cv::resize(frameStabilizatedCropResized, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				cv::cuda::resize(gFrameStabilizatedCrop, gWriterFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
+				gWriterFrameToShow.download(writerFrameToShow);
+				
 				temp_i = 0;
-				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), 
-				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsPing, secondsFullPing, a, b),
-					textOrg[temp_i], fontFace, fontScale / 2, colorGREEN, 2, 8, false); ++temp_i;
+				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsGPUPing, a, b), 
+				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsGPUPing, secondsFullPing, a, b),
+					textOrg[temp_i], fontFace, fontScale / 2, colorPURPLE, 2, 8, false); ++temp_i;
 				//cv::putText(writerFrameToShow, format("Wiener[1] %d, thread[t] %d, Q[5][6] = %2.1f, SNR[7][8] = %2.1f", wiener, threadwiener, Q, 1 / nsr),
 				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
 				//cv::putText(writerFrameToShow, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), RAD_TO_DEG * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
@@ -491,7 +496,7 @@ int main()
 				//cv::putText(writerFrameToShow, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), 
 				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
 				cv::putText(writerFrameToShow, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners),
-					textOrg[temp_i], fontFace, fontScale / 2, colorGREEN, 2, 8, false); ++temp_i;
+					textOrg[temp_i], fontFace, fontScale / 2, colorPURPLE, 2, 8, false); ++temp_i;
 				
 				cv::imshow("Writed", writerFrameToShow);
 			}
@@ -514,11 +519,14 @@ int main()
 			gFrameStabilizatedCropResized.download(frameStabilizatedCropResized);
 			//frameStabilizatedCropResized(cv::Rect(0, 0, 860, textOrg[7].y)) *= 0.3;
 			//frameStabilizatedCropResized(cv::Rect(0, 0, a, textOrg[temp_i].y)) *= 0.3;
-			endPing = clock();
+			endGPUPing = clock();
 			if (writeVideo)
 			{
-				gFrameOut = gFrame(roi);
-				cuda::resize(gFrameOut, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
+				cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
+				gFrameStabilizatedCropResized.download(frameStabilizatedCropResized); //9 ms
+				
+				gFrameRoi = gFrame(roi);
+				cuda::resize(gFrameRoi, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
 				cuda::warpAffine(gCrossRef, gCross, TStab, cv::Size(a, b));
 
 				gFrameOut.download(frameOut);
@@ -529,7 +537,7 @@ int main()
 				frameOut.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
 				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b)));
 				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, velocity, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
-					seconds, secondsPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
+					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
 					fontFace, fontScale, colorRED);
 				
 
@@ -541,10 +549,12 @@ int main()
 
 			}
 			else {
-				cv::resize(frameStabilizatedCropResized, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				//cv::resize(frameStabilizatedCropResized, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				cv::cuda::resize(gFrameStabilizatedCrop, gWriterFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
+				gWriterFrameToShow.download(writerFrameToShow);
 				temp_i = 0;
-				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsPing, a, b), 
-				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsPing, secondsFullPing, a, b),
+				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsGPUPing, a, b), 
+				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsGPUPing, secondsFullPing, a, b),
 					textOrg[temp_i], fontFace, fontScale / 2, colorRED, 2, 8, false); ++temp_i;
 				//cv::putText(writerFrameToShow, format("Wiener[1] %d, thread[t] %d, Q[5][6] = %2.1f, SNR[7][8] = %2.1f", wiener, threadwiener, Q, 1 / nsr),
 				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
@@ -565,7 +575,7 @@ int main()
 		// Ожидание внешних команд управления с клавиатуры
 		int keyboard = waitKey(1);
 		if (keyResponse(keyboard, frame, frameStabilizatedCropResized, crossRef, gCrossRef, a, b, nsr, wiener, threadwiener, Q, tauStab, framePart, roi))
-			break;		
+			break;
 		endFullPing = clock();
 	}
 	outputFile.close();

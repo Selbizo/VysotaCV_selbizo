@@ -24,11 +24,13 @@ using namespace std;
 const double DEG_TO_RAD = CV_PI / 180.0;
 const double RAD_TO_DEG = 180.0 / CV_PI;
 
-Scalar colorRED(48, 62, 255);
-Scalar colorGREEN(82, 156, 23);
-Scalar colorBLUE(239, 107, 23);
-Scalar colorWHITE(255, 255, 255);
-Scalar ColorBLACK(0, 0, 0);
+Scalar colorRED   (48, 62,  255);
+Scalar colorYELLOW(5,  188, 251);
+Scalar colorGREEN (82, 156,  23);
+Scalar colorBLUE  (239,107,  23);
+Scalar colorPURPLE(180,  0, 180);
+Scalar colorWHITE (255,255, 255);
+Scalar colorBLACK (0,    0,   0);
 
 
 struct TransformParam
@@ -260,7 +262,8 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 			roi.width = a * framePart;
 			roi.height = b * framePart;
 
-			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+			//cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+			crossRef.setTo(colorBLACK);
 			cv::rectangle(crossRef, roi, Scalar(0, 10, 20), -1); // покрасили в один цвет
 			cv::rectangle(crossRef, roi, colorGREEN, 2); // покрасили в один цвет
 			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, colorRED, 2);
@@ -279,7 +282,9 @@ bool keyResponse(int& keyboard, Mat& frame, Mat& croppedImg, Mat& crossRef, cuda
 			roi.y = b * ((1.0 - framePart) / 2.0);
 			roi.width = a * framePart;
 			roi.height = b * framePart;
-			cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+
+			//cv::rectangle(crossRef, Rect(0, 0, a, b), Scalar(0, 0, 0), FILLED); // покрасили в один цвет
+			crossRef.setTo(colorBLACK);
 			cv::rectangle(crossRef, roi, Scalar(0, 10, 20), -1); // покрасили в один цвет
 			cv::rectangle(crossRef, roi, colorGREEN, 2); // покрасили в один цвет
 			cv::ellipse(crossRef, cv::Point2f(a / 2, b / 2), cv::Size(a * framePart / 8, 0), 0.0, 0, 360, colorRED, 2);

@@ -66,7 +66,7 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 }
 
 
-void initFirstFrameZero(Mat& oldFrame, Mat& oldCompressed, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray,
+void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray,
 	cuda::GpuMat& gOldCompressed, cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
 	double& kSwitch, const int a, const int b, const int compression, cuda::GpuMat& mask_device, bool& stab_possible)
@@ -203,7 +203,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 			transforms[1].da *= 0.999;
 			kSwitch *= 0.95;
 		}
-		cout << "-> right border collision" << endl;
+		//cout << "-> right border collision" << endl;
 	}
 	else if (roi.x + roi.width + (int)transforms[1].dx >= a)
 	{
@@ -213,7 +213,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 			transforms[1].da *= 0.999;
 			kSwitch *= 0.95;
 		}
-		cout << "<- left border collision" << endl;
+		//cout << "<- left border collision" << endl;
 	}
 
 	if (roi.y + (int)transforms[1].dy < 0)
@@ -224,7 +224,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 			transforms[1].da *= 0.999;
 			kSwitch *= 0.95;
 		}
-		cout << "down border collision" << endl;
+		//cout << "down border collision" << endl;
 	}
 	else if (roi.y + roi.height + (int)transforms[1].dy >= b)
 	{
@@ -234,7 +234,7 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 			transforms[1].da *= 0.999;
 			kSwitch *= 0.95;
 		}
-		cout << "uppper border collision" << endl;
+		//cout << "uppper border collision" << endl;
 	}
 
 	if (kSwitch < 1.0)
