@@ -23,10 +23,10 @@ using namespace std;
 //string videoSource = "./SourceVideos/Pixel_Vysota_VID_1.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_park4k.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_parkfhd60fps.mp4"; // pad6-100, pixel4-101, pixel-102
-//string videoSource = "./SourceVideos/testVelocityEstimator.mp4"; // pad6-100, pixel4-101, pixel-102
-int videoSource = 0;
+string videoSource = "./SourceVideos/testVelocityEstimator.mp4"; // pad6-100, pixel4-101, pixel-102
+//int videoSource = 0;
 
-bool writeVideo = true;
+bool writeVideo = false;
 bool stabPossible = false;
 
 const int compression = 2; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
@@ -43,6 +43,6 @@ double harrisK = qualityLevel;
 // переменные для оптического потока
 bool useGray = true;
 int winSize = blockSize;
-int maxLevel = 3 + 4/compression;
+int maxLevel = 3 + 8/compression;
 int iters = 10;
 double minDist = minDistance;

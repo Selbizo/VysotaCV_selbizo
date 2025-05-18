@@ -124,7 +124,9 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d,
 	else
 	{
 		T = estimateAffine2D(p0, p1);
-		transforms[0] = TransformParam(-(T.at<double>(0, 2) * N + d.x * (1.0 - N)), -(T.at<double>(1, 2) * N + d.y * (1.0 - N)), -atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
+		transforms[0] = TransformParam(-(T.at<double>(0, 2) * N + d.x * (1.0 - N)) * compression, 
+			-(T.at<double>(1, 2) * N + d.y * (1.0 - N)) * compression, 
+			-atan2(T.at<double>(1, 0), T.at<double>(0, 0)));
 	}
 }
 
@@ -190,9 +192,9 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	//if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	if ((abs(transforms[0].dx) - 10.0 < 3.0 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 3.0 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 3.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	{
-		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx); //накопление по перемещнию внутри кадра
-		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy);
-		transforms[1].da = kSwitch * (transforms[1].da * (tau_stab - 4.0) / tau_stab + kSwitch * transforms[0].da);
+		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx) - movement[1].dx; //накопление по перемещнию внутри кадра
+		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy) - movement[1].dy;
+		transforms[1].da = kSwitch * (transforms[1].da * (tau_stab - 4.0) / tau_stab + kSwitch * transforms[0].da) - movement[1].da;
 	}
 
 	if (transforms[1].da > 3.0)
@@ -204,14 +206,14 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (tau_stab < 30.0)
 		tau_stab *= 1.1;
 
-	if (tau_stab < 50.0 && !(abs(transforms[1].dx) > a / 2 || abs(transforms[1].dy) > b / 2))
+	if (tau_stab < 70.0 && !(abs(transforms[1].dx) > a / 2 || abs(transforms[1].dy) > b / 2))
 		tau_stab *= 1.1;
 
-	if (tau_stab < 120.0 && !(abs(transforms[1].dx) > a / 3 || abs(transforms[1].dy) > b / 3))
+	if (tau_stab < 200.0 && !(abs(transforms[1].dx) > a / 3 || abs(transforms[1].dy) > b / 3))
 	{
 		tau_stab *= 1.1;
-		if (tau_stab > 120.0)
-			tau_stab = 120.0;
+		if (tau_stab > 200.0)
+			tau_stab = 200.0;
 	}
 
 
@@ -278,15 +280,15 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	movement[2].dy = (movement[2].dy*3 + movement[1].dy - transforms[0].dy)/4; //velocities first derivative
 	movement[2].da = (movement[2].da*3 + movement[1].da - transforms[0].da)/4; //velocities first derivative
 
-	movement[1].dx = (movement[1].dx*127 + transforms[0].dx)/128; //velocities first derivative 
-	movement[1].dy = (movement[1].dy*127 + transforms[0].dy)/128; //velocities first derivative
-	movement[1].da = (movement[1].da*127 + transforms[0].da)/128; //velocities first derivative
+	movement[1].dx = (movement[1].dx*31 + transforms[0].dx)/32; //velocities first derivative 
+	movement[1].dy = (movement[1].dy*31 + transforms[0].dy)/32; //velocities first derivative
+	movement[1].da = (movement[1].da*31 + transforms[0].da)/32; //velocities first derivative
 
 	movement[0].dy = movement[1].dy + movement[0].dy*127/128; //coordinates
 	movement[0].da = movement[1].da + movement[0].da*127/128; //coordinates
 	movement[0].dx = movement[1].dx + movement[0].dx*127/128; //coordinates
 
-	transforms[2].dx = transforms[1].dx - movement[1].dx; //coordinates
+	transforms[2].dx = transforms[1].dx - movement[1].dx; //current bias using current velocity
 	transforms[2].dy = transforms[1].dy - movement[1].dy; //coordinates
 	transforms[2].da = transforms[1].da - movement[1].da; //coordinates
 

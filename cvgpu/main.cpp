@@ -6,7 +6,6 @@
 #include "stabilizationFunctions.hpp"
 #include "wienerFilter.hpp"
 
-
 using namespace cv;
 using namespace std;
 
@@ -25,7 +24,6 @@ int main()
 	// детектор для поиска характерных точек
 	Ptr<cuda::CornersDetector > d_features = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
 		maxCorners, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
-
 
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
@@ -69,7 +67,7 @@ int main()
 	bool wiener = false;
 	bool threadwiener = false;
 	double nsr = 0.01;
-	double Q = 8.0; // скважность считывания кадра на камере (выдержка к частоте кадров) (умножена на 10)
+	double Q = 8.0;
 	double LEN = 0;
 	double THETA = 0.0;
 
@@ -99,7 +97,7 @@ int main()
 
 	VideoCapture capture(videoSource);
 
-	 //Попытка установить 720p (1280x720)
+	//Попытка установить 720p (1280x720)
 
 	//capture.set(cv::CAP_PROP_FRAME_WIDTH, 1280);
 	//capture.set(cv::CAP_PROP_FRAME_HEIGHT, 720);
@@ -191,10 +189,9 @@ int main()
 		for (int i = 0; i < 20; i++)
 		{
 			textOrg[i].x = 5;
-			textOrg[i].y = 5 + 30 * fontScale * (i + 1);
+			textOrg[i].y = 5 + 40 * fontScale * (i + 1);
 		}
 	}
-
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat mask_host = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
@@ -270,7 +267,7 @@ int main()
 				if (status[i] && p1[i].x < (double)(a*31 / 32) && p1[i].x > (double)(a * 1 / 32) && p1[i].y < (double)(b * 31 / 32) && p1[i].y > (double)(b * 1 / 16)) {
 					p1[i].x;
 					p1[i].y;
-					p0.push_back(p1[i]); // Выбор точек good_new
+					p0.push_back(p1[i]);
 				}
 			}
 
@@ -321,10 +318,9 @@ int main()
 		startGPUPing = clock();
 		if (stabPossible) {
 			gFrame.upload(frame);
-
 			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_AREA); //лучший метод для понижения разрешения
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
-			cuda::bilateralFilter(gGray, gGray, 5, 5.0, 5.0);
+			//cuda::bilateralFilter(gGray, gGray, 5, 5.0, 5.0);
 		}
 
 		if ((gP0.cols < maxCorners * 1 / 5) || !stabPossible)
@@ -345,12 +341,11 @@ int main()
 				//frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 			}
 			gFrame.upload(frame);
-			//gCompressed.release();
-			//gGray.release();
+
 			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_AREA);
 
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
-			cuda::bilateralFilter(gGray, gGray, 5, 5.0, 5.0);
+			//cuda::bilateralFilter(gGray, gGray, 5, 5.0, 5.0);
 
 			if (frameCnt % 10 == 1 && !stabPossible)
 			{
@@ -385,8 +380,8 @@ int main()
 			download(gStatus, status);
 			getBiasAndRotation(p0, p1, d, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
 			iirAdaptive(transforms, tauStab, roi, a, b, c, kSwitch, movement);
-			transforms[2].getTransform(TStab, a, b, c, atan_ba, framePart); //[1]
-			transforms[2].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart); //[1]
+			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart); //[1]
+			transforms[1].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart); //[1]
 
 			if (T.rows == 2 && T.cols == 3)
 			{
@@ -400,7 +395,6 @@ int main()
 			// Винеровская фильтрация
 			if (wiener && kSwitch > 0.01)
 			{
-				//LEN = sqrt(d.x * d.x + d.y * d.y) / Q;
 				LEN = sqrt(transforms[0].dx * transforms[0].dx + transforms[0].dy * transforms[0].dy) / Q;
 				if (transforms[0].dx == 0.0)
 					if (transforms[0].dy > 0.0)
@@ -444,7 +438,7 @@ int main()
 				cuda::bilateralFilter(gFrame, gFrame, 5, 5.0, 5.0);
 			}
 
-			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b)); //8ms
+			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b));
 
 			gFrameStabilizatedCrop = gFrameStabilized(roi);  
 			
@@ -453,20 +447,20 @@ int main()
 			//~~~~~~~~~~~~~~~~~~~~~~~~~~~ Вывод изображения на дисплей
 			if (writeVideo)
 			{
-				cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
-				gFrameStabilizatedCropResized.download(frameStabilizatedCropResized); //9 ms
+				cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC);
+				gFrameStabilizatedCropResized.download(frameStabilizatedCropResized);
 				
 				frameStabilizatedCropResized.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
 				
-				gFrameRoi = gFrame(roi); //without stab
-				cuda::resize(gFrameRoi, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST); //8ms
+				gFrameRoi = gFrame(roi);
+				cuda::resize(gFrameRoi, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
 				gFrameOut.download(frameOut);
-				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b))); //5ms
+				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b)));
 				
 				cuda::warpAffine(gCrossRef, gCross, TStabInv, cv::Size(a, b));
 				cuda::add(gFrame, gCross, gFrameShowOrig);
 				gFrameShowOrig.download(frameShowOrig);
-				frameShowOrig.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
+				frameShowOrig.copyTo(writerFrame(cv::Rect(a, 0, a, b)));
 
 
 				if (p0.size() > 0)
@@ -475,13 +469,11 @@ int main()
 								
 				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners, 
 					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab, 
-					fontFace, fontScale, colorGREEN);
+					fontFace, fontScale, colorPURPLE);
 
-				//writer.write(writerFrame);
 				writerSmall.write(frameStabilizatedCropResized);
 				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_LINEAR);
 				cv::imshow("Writed", writerFrameToShow);
-				//writer.write(writerFrameToShow);
 			}
 			if(!writeVideo) {
 				cv::cuda::resize(gFrameStabilizatedCrop, gWriterFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
@@ -489,7 +481,7 @@ int main()
 				
 				showServiceInfoSmall(writerFrameToShow, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
 					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
-					fontFace, fontScale, colorGREEN);
+					fontFace, fontScale, colorPURPLE);
 
 				cv::imshow("Writed", writerFrameToShow);
 			}
@@ -497,15 +489,12 @@ int main()
 		else {
 			if (kSwitch > 0.1)
 				kSwitch *= 0.8;
-
 			transforms[1].dx *= 0.8;
 			transforms[1].dy *= 0.8;
 			transforms[1].da *= 0.8;
 			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart);
 			cuda::warpAffine(gFrame, gFrameStabilized, TStab, cv::Size(a, b));
 			
-
-			//gFrameStabilizatedCrop = gFrameStabilized(roi);
 			gFrameStabilizatedCrop = gFrameStabilized;
 
 			cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
@@ -515,45 +504,33 @@ int main()
 			endGPUPing = clock();
 			if (writeVideo)
 			{
-				cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC); //8ms
-				gFrameStabilizatedCropResized.download(frameStabilizatedCropResized); //9 ms
-				
+				cuda::resize(gFrameStabilizatedCrop, gFrameStabilizatedCropResized, cv::Size(a, b), 0.0, 0.0, cv::INTER_CUBIC);
+				gFrameStabilizatedCropResized.download(frameStabilizatedCropResized);
 				gFrameRoi = gFrame(roi);
 				cuda::resize(gFrameRoi, gFrameOut, cv::Size(a, b), 0.0, 0.0, cv::INTER_NEAREST);
 				cuda::warpAffine(gCrossRef, gCross, TStab, cv::Size(a, b));
-
-				gFrameOut.download(frameOut);
-				//cv::add(frame, cross, frame);
-				
-				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
-
+				gFrameOut.download(frameOut);				
+				frame.copyTo(writerFrame(cv::Rect(a, 0, a, b)));
 				frameOut.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
 				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b)));
 				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
 					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
 					fontFace, fontScale, colorRED);
-				
-
 				writer.write(writerFrame);
 				writerSmall.write(frameStabilizatedCropResized);
 				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				cv::imshow("Writed", writerFrameToShow);
-
 			}
 			else {
-				
 				cv::cuda::resize(gFrameStabilizatedCrop, gWriterFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				gWriterFrameToShow.download(writerFrameToShow);
-				
 				showServiceInfoSmall(writerFrameToShow, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
 					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
 					fontFace, fontScale, colorRED);
-
 				cv::imshow("Writed", writerFrameToShow);
 			}
 
 		}
-
 		// Ожидание внешних команд управления с клавиатуры
 		int keyboard = waitKey(1);
 		if (keyResponse(keyboard, frame, frameStabilizatedCropResized, crossRef, gCrossRef, a, b, nsr, wiener, threadwiener, Q, tauStab, framePart, roi))
