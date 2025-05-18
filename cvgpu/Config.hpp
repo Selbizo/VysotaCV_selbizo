@@ -23,8 +23,8 @@ using namespace std;
 //string videoSource = "./SourceVideos/Pixel_Vysota_VID_1.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_park4k.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_parkfhd60fps.mp4"; // pad6-100, pixel4-101, pixel-102
-string videoSource = "./SourceVideos/testVelocityEstimator.mp4"; // pad6-100, pixel4-101, pixel-102
-//int videoSource = 0;
+//string videoSource = "./SourceVideos/testVelocityEstimator.mp4"; // pad6-100, pixel4-101, pixel-102
+int videoSource = 0;
 
 bool writeVideo = true;
 bool stabPossible = false;
