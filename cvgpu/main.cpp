@@ -53,12 +53,13 @@ int main()
 		transforms[i].dy = 0.0;
 		transforms[i].da = 0.0;
 	}
-	vector <TransformParam> velocity(2);
-	for (int i = 0; i < 2;i++)
+	vector <TransformParam> movement(3);
+	
+	for (int i = 0; i < movement.size();i++)
 	{
-		velocity[i].dx = 0.0;
-		velocity[i].dy = 0.0;
-		velocity[i].da = 0.0;
+		movement[i].dx = 0.0;
+		movement[i].dy = 0.0;
+		movement[i].da = 0.0;
 	}
 
 	// переменные для фильтра Виннера
@@ -158,7 +159,10 @@ int main()
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Для отображения надписей на кадре~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	int fontFace = FONT_HERSHEY_SIMPLEX;
-	double fontScale = 1.7*b/1080;
+
+	double fontScale = 0.5*min(a,b)/1080;
+	if (writeVideo == true)
+		fontScale = fontScale*2;
 
 	setlocale(LC_ALL, "RU");
 
@@ -187,7 +191,7 @@ int main()
 		for (int i = 0; i < 20; i++)
 		{
 			textOrg[i].x = 5;
-			textOrg[i].y = 5 + 40 * fontScale * (i + 1);
+			textOrg[i].y = 5 + 30 * fontScale * (i + 1);
 		}
 	}
 
@@ -272,7 +276,7 @@ int main()
 
 			if (p1.size() < double(maxCorners * 5 / 7) && rng.uniform(0.0, 1.0) < 0.9)
 			{
-				for (uint i = 0; i < abs((int)(velocity[0].dx + velocity[0].dy))*2 + 1; ++i)
+				for (uint i = 0; i < abs((int)(movement[1].dx + movement[1].dy))*2 + 1; ++i)
 				{
 					p0.push_back(Point2f(transforms[1].dx/compression / 2 + a / compression/2 + rng.uniform(-a / compression / 4, a / compression / 4),
 						transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4)));
@@ -380,9 +384,9 @@ int main()
 		if (stabPossible) {
 			download(gStatus, status);
 			getBiasAndRotation(p0, p1, d, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
-			iirAdaptive(transforms, tauStab, roi, a, b, c, kSwitch, velocity);
-			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart);
-			transforms[1].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart);
+			iirAdaptive(transforms, tauStab, roi, a, b, c, kSwitch, movement);
+			transforms[2].getTransform(TStab, a, b, c, atan_ba, framePart); //[1]
+			transforms[2].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart); //[1]
 
 			if (T.rows == 2 && T.cols == 3)
 			{
@@ -469,13 +473,13 @@ int main()
 					for (uint i = 0; i < p0.size(); i++)
 						circle(writerFrame, cv::Point2f(p1[i].x*compression + a, p1[i].y*compression), 4, colors[i], -1);
 								
-				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, velocity, tauStab, kSwitch, framePart, gP0.cols, maxCorners, 
+				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners, 
 					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab, 
 					fontFace, fontScale, colorGREEN);
 
-				writer.write(writerFrame);
+				//writer.write(writerFrame);
 				writerSmall.write(frameStabilizatedCropResized);
-				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
+				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_LINEAR);
 				cv::imshow("Writed", writerFrameToShow);
 				//writer.write(writerFrameToShow);
 			}
@@ -483,21 +487,10 @@ int main()
 				cv::cuda::resize(gFrameStabilizatedCrop, gWriterFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				gWriterFrameToShow.download(writerFrameToShow);
 				
-				temp_i = 0;
-				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsGPUPing, a, b), 
-				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsGPUPing, secondsFullPing, a, b),
-					textOrg[temp_i], fontFace, fontScale / 2, colorPURPLE, 2, 8, false); ++temp_i;
-				//cv::putText(writerFrameToShow, format("Wiener[1] %d, thread[t] %d, Q[5][6] = %2.1f, SNR[7][8] = %2.1f", wiener, threadwiener, Q, 1 / nsr),
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				//cv::putText(writerFrameToShow, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), RAD_TO_DEG * atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				//cv::putText(writerFrameToShow, format("[dx dy] %2.2f %2.2f]", d.x, d.y), 
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				//cv::putText(writerFrameToShow, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch), 
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				cv::putText(writerFrameToShow, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners),
-					textOrg[temp_i], fontFace, fontScale / 2, colorPURPLE, 2, 8, false); ++temp_i;
-				
+				showServiceInfoSmall(writerFrameToShow, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
+					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
+					fontFace, fontScale, colorGREEN);
+
 				cv::imshow("Writed", writerFrameToShow);
 			}
 		}
@@ -536,7 +529,7 @@ int main()
 
 				frameOut.copyTo(writerFrame(cv::Rect(0, 0, a, b)));
 				frameOut.copyTo(writerFrame(cv::Rect(0, b, a, b)));
-				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, velocity, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
+				showServiceInfo(writerFrame, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
 					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
 					fontFace, fontScale, colorRED);
 				
@@ -545,27 +538,16 @@ int main()
 				writerSmall.write(frameStabilizatedCropResized);
 				cv::resize(writerFrame, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				cv::imshow("Writed", writerFrameToShow);
-				//writer.write(writerFrameToShow);
 
 			}
 			else {
-				//cv::resize(frameStabilizatedCropResized, writerFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_CUBIC);
+				
 				cv::cuda::resize(gFrameStabilizatedCrop, gWriterFrameToShow, cv::Size(1080*a/b, 1080), 0.0, 0.0, cv::INTER_NEAREST);
 				gWriterFrameToShow.download(writerFrameToShow);
-				temp_i = 0;
-				//cv::putText(frameStabilizatedCropResized, format("fps = %2.1f, ping = %1.3f, Size: %d x %d.", 1 / seconds, secondsGPUPing, a, b), 
-				cv::putText(writerFrameToShow, format("FPS %2.1f, GPUping= %1.3f, full ping= %1.3f, Res%dx%d.", 1 / seconds, secondsGPUPing, secondsFullPing, a, b),
-					textOrg[temp_i], fontFace, fontScale / 2, colorRED, 2, 8, false); ++temp_i;
-				//cv::putText(writerFrameToShow, format("Wiener[1] %d, thread[t] %d, Q[5][6] = %2.1f, SNR[7][8] = %2.1f", wiener, threadwiener, Q, 1 / nsr),
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				//cv::putText(frameStabilizatedCropResized, format("[x y angle] %2.0f %2.0f %1.1f]", TStab.at<double>(0, 2), TStab.at<double>(1, 2), RAD_TO_DEG* atan2(TStab.at<double>(1, 0), TStab.at<double>(0, 0))),
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				//cv::putText(frameStabilizatedCropResized, format("[dx dy] %2.2f %2.2f]", d.x, d.y),
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				//cv::putText(frameStabilizatedCropResized, format("Tau[3][4] = %3.0f, kSwitch = %1.2f", tauStab, kSwitch),
-				//	textOrg[temp_i], fontFace, fontScale / 2, color, 2, 8, false); ++temp_i;
-				cv::putText(writerFrameToShow, format("Crop[w][s] = %2.1f, %d Corners of %d.", 1 / framePart, gP0.cols, maxCorners),
-					textOrg[temp_i], fontFace, fontScale / 2, colorGREEN, 2, 8, false); ++temp_i;
+				
+				showServiceInfoSmall(writerFrameToShow, Q, nsr, wiener, threadwiener, stabPossible, transforms, movement, tauStab, kSwitch, framePart, gP0.cols, maxCorners,
+					seconds, secondsGPUPing, secondsFullPing, a, b, textOrg, textOrgOrig, textOrgCrop, textOrgStab,
+					fontFace, fontScale, colorRED);
 
 				cv::imshow("Writed", writerFrameToShow);
 			}

@@ -17,6 +17,26 @@
 using namespace cv;
 using namespace std;
 
+void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldCompressed, cuda::GpuMat& gOldGray,
+	cuda::GpuMat& gP0, vector<Point2f>& p0,
+	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
+	double& kSwitch, const int a, const int b, const int compression, cuda::GpuMat& mask_device, bool& stab_possible);
+
+void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray,
+	cuda::GpuMat& gOldCompressed, cuda::GpuMat& gP0, vector<Point2f>& p0,
+	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
+	double& kSwitch, const int a, const int b, const int compression, cuda::GpuMat& mask_device, bool& stab_possible);
+
+void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d,
+	vector <TransformParam>& transforms, Mat& T, const int compression);
+
+void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& frame);
+
+void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& velocity);
+
+void iirAdaptiveHighPass(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch);
+
+
 
 void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldCompressed, cuda::GpuMat& gOldGray,
 	cuda::GpuMat& gP0, vector<Point2f>& p0,
@@ -165,7 +185,7 @@ void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& f
 	}
 }
 
-void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& velocity)//, cv::KalmanFilter& KF)
+void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& movement)//, cv::KalmanFilter& KF)
 {
 	//if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	if ((abs(transforms[0].dx) - 10.0 < 3.0 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 3.0 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 3.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
@@ -240,9 +260,9 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (kSwitch < 1.0)
 		tau_stab *= (4.0 + kSwitch) / 5.0;
 
-	transforms[2].dx = (1.0 - 0.05) * transforms[2].dx + 0.05 * abs(transforms[1].dx);
-	transforms[2].dy = (1.0 - 0.05) * transforms[2].dy + 0.05 * abs(transforms[1].dy);
-	transforms[2].da = (1.0 - 0.05) * transforms[2].da + 0.05 * abs(transforms[1].da);
+	//transforms[2].dx = (1.0 - 0.05) * transforms[2].dx + 0.05 * abs(transforms[1].dx);
+	//transforms[2].dy = (1.0 - 0.05) * transforms[2].dy + 0.05 * abs(transforms[1].dy);
+	//transforms[2].da = (1.0 - 0.05) * transforms[2].da + 0.05 * abs(transforms[1].da);
 
 	//if ((abs(transforms[0].dx) - 10.0 < 2.2 * transforms[3].dx || abs(transforms[0].dx) < 0.0) && (abs(transforms[0].dy) - 10.0 < 2.2 * transforms[3].dy || abs(transforms[0].dy) < 0.0) && (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0))
 	if (true)
@@ -253,9 +273,25 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	}
 
 
-	velocity[0].dx = velocity[0].dx * 63 / 64 + transforms[0].dx / 64;
-	velocity[0].dy = velocity[0].dy * 63 / 64 + transforms[0].dy / 64;
-	velocity[0].da = velocity[0].da * 63 / 64 + transforms[0].da / 64;
+
+	movement[2].dx = (movement[2].dx*3 + movement[1].dx - transforms[0].dx)/4; //velocities first derivative 
+	movement[2].dy = (movement[2].dy*3 + movement[1].dy - transforms[0].dy)/4; //velocities first derivative
+	movement[2].da = (movement[2].da*3 + movement[1].da - transforms[0].da)/4; //velocities first derivative
+
+	movement[1].dx = (movement[1].dx*127 + transforms[0].dx)/128; //velocities first derivative 
+	movement[1].dy = (movement[1].dy*127 + transforms[0].dy)/128; //velocities first derivative
+	movement[1].da = (movement[1].da*127 + transforms[0].da)/128; //velocities first derivative
+
+	movement[0].dy = movement[1].dy + movement[0].dy*127/128; //coordinates
+	movement[0].da = movement[1].da + movement[0].da*127/128; //coordinates
+	movement[0].dx = movement[1].dx + movement[0].dx*127/128; //coordinates
+
+	transforms[2].dx = transforms[1].dx - movement[1].dx; //coordinates
+	transforms[2].dy = transforms[1].dy - movement[1].dy; //coordinates
+	transforms[2].da = transforms[1].da - movement[1].da; //coordinates
+
+
+
 }
 
 void iirAdaptiveHighPass(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, int cols, int rows, double& kSwitch)//, cv::KalmanFilter& KF)
@@ -364,4 +400,10 @@ void iirAdaptiveHighPass(vector<TransformParam>& transforms, double& tau_stab, R
 	//transforms[3].dy = (1.0 - 0.7) * transforms[3].dy + 0.7 * abs(transforms[0].dy);
 	//if (abs(transforms[0].da) - 0.01 < 2.2 * transforms[3].da || abs(transforms[0].da) < 0.0)
 	//transforms[3].da = (1.0 - 0.7) * transforms[3].da + 0.7 * abs(transforms[0].da);
+}
+
+
+void kalmanFilter(vector<TransformParam>& movement, vector<TransformParam>& estimatedMovement)
+{
+
 }

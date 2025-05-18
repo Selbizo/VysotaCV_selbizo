@@ -18,17 +18,18 @@ using namespace std;
 //string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "http://192.168.0.100:4747/video"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/treeshd.mp4"; // pad6-100, pixel4-101, pixel-102
-string videoSource = "./SourceVideos/treesfhd.mp4"; // pad6-100, pixel4-101, pixel-102
+//string videoSource = "./SourceVideos/treesfhd.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/trees4k.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_VID_1.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_park4k.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Pixel_Vysota_parkfhd60fps.mp4"; // pad6-100, pixel4-101, pixel-102
+string videoSource = "./SourceVideos/testVelocityEstimator.mp4"; // pad6-100, pixel4-101, pixel-102
 //int videoSource = 0;
 
-bool writeVideo = false;
+bool writeVideo = true;
 bool stabPossible = false;
 
-const int compression = 1; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
+const int compression = 2; //коэффициент сжатия изображения для обработки //4k 1->26ms 2->20ms 3->20ms
 
 //переменные для поиска характерных точек
 int	srcType = CV_8UC1;
