@@ -1,4 +1,4 @@
-﻿//Алгоритм стабилизации видео на основе вычисление Lucas-Kanade Optical Flow
+//Алгоритм стабилизации видео на основе вычисление Lucas-Kanade Optical Flow
 
 #include "Config.hpp"
 

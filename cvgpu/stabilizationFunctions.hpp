@@ -85,7 +85,6 @@ void initFirstFrame(VideoCapture& capture, Mat& oldFrame, cuda::GpuMat& gOldFram
 	}
 }
 
-
 void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gOldGray,
 	cuda::GpuMat& gOldCompressed, cuda::GpuMat& gP0, vector<Point2f>& p0,
 	double& qualityLevel, double& harrisK, int& maxCorners, Ptr<cuda::CornersDetector>& d_features, vector <TransformParam>& transforms,
@@ -99,7 +98,6 @@ void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gO
 	//cuda::resize(gOldGray, gOldGray, Size(gOldGray.cols, gOldGray.rows), 0.0, 0.0, cv::INTER_AREA);
 	stab_possible = false;
 }
-
 
 void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, 
 	vector <TransformParam>& transforms, Mat& T, const int compression)
@@ -128,64 +126,7 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d,
 	}
 }
 
-
-void iir(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, Mat& frame)
-{
-
-	transforms[1].dx = transforms[1].dx * (tau_stab - 1.0) / tau_stab + transforms[0].dx;
-	transforms[1].dy = transforms[1].dy * (tau_stab - 1.0) / tau_stab + transforms[0].dy;
-	transforms[1].da = transforms[1].da * (0.5 * tau_stab - 1.0) / (0.5 * tau_stab) + transforms[0].da;
-	if (transforms[1].da > 1.0)
-	{
-		transforms[1].da = 1.0;
-	}
-	if (transforms[1].da < -1.0)
-	{
-		transforms[1].da = -1.0;
-	}
-	if (tau_stab < 150.0) {
-		tau_stab *= 1.1;
-	}
-	if (tau_stab < 500.0 && !(abs(transforms[1].dx) > 15.0 || abs(transforms[1].dy) > 15.0)) {
-		tau_stab *= 1.1;
-	}
-	if (roi.x + (int)transforms[1].dx < 0)
-	{
-		transforms[1].dx = double(1 - roi.x);
-		if (tau_stab > 50) {
-			tau_stab *= 0.8;
-			transforms[1].da *= 0.95;
-		}
-
-	}
-	else if (roi.x + roi.width + (int)transforms[1].dx >= frame.cols)
-	{
-		transforms[1].dx = (double)(frame.cols - roi.x - roi.width);
-		if (tau_stab > 50) {
-			tau_stab *= 0.8;
-			transforms[1].da *= 0.95;
-		}
-	}
-
-	if (roi.y + (int)transforms[1].dy < 0)
-	{
-		transforms[1].dy = (double)(1 - roi.y);
-		if (tau_stab > 50) {
-			tau_stab *= 0.8;
-			transforms[1].da *= 0.95;
-		}
-	}
-	else if (roi.y + roi.height + (int)transforms[1].dy >= frame.rows)
-	{
-		transforms[1].dy = (double)(frame.rows - roi.y - roi.height);
-		if (tau_stab > 50) {
-			tau_stab *= 0.8;
-			transforms[1].da *= 0.95;
-		}
-	}
-}
-
-void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& movement)//, cv::KalmanFilter& KF)
+void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& velocity)//, cv::KalmanFilter& KF)
 {
 	//if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	if ((abs(transforms[0].dx) - 10.0 < 3.0 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 3.0 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 3.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения

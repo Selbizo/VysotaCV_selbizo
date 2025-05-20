@@ -59,6 +59,18 @@ struct TransformParam
 
 	}
 
+	const void getTransform(Mat& T)
+	{
+		// Reconstruct transformation matrix accordingly to new values
+		T.at<double>(0, 0) = cos(da);
+		T.at<double>(0, 1) = -sin(da);
+		T.at<double>(1, 0) = sin(da);
+		T.at<double>(1, 1) = cos(da);
+		T.at<double>(0, 2) = dx;
+		T.at<double>(1, 2) = dy;
+
+	}
+	
 	const void getTransformInvert(Mat& T, double a, double b, double c, double atan_ba, double crop)
 	{
 		// Reconstruct unverted transformation matrix accordingly to new values
