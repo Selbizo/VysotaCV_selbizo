@@ -25,7 +25,8 @@ int main()
 	// детектор для поиска характерных точек
 	Ptr<cuda::CornersDetector > d_features = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
 		maxCorners, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
-
+	Ptr<cuda::CornersDetector > d_features_small = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
+		5, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
 
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
@@ -323,11 +324,20 @@ int main()
 					p0.push_back(Point2f(transforms[1].dx/compression / 2 + a / compression/2 + rng.uniform(-a / compression / 4, a / compression / 4),
 						transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4)));
 				}
+
+				//провести допоиск точек в кадре gGray
+				//Rect tmpRoi = Rect(
+				//	1,
+				//	1,
+				//	a / compression,
+				//	b / compression
+				//);
+				//gRoiGray = gGray(tmpRoi);
+
+				//addFramePoints(gGray, p0, d_features_small, tmpRoi);
 			}
 			
-			//провести допоиск точек в кадре gGray
-			gRoiGray = gGray(Rect(transforms[1].dx / compression / 2 + a / compression / 2 + rng.uniform(-a / compression / 4, a / compression / 4), transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4));
-			addFramePoints(gOldGray, p0, d_features);
+
 
 
 			gGray.copyTo(gOldGray);
@@ -392,8 +402,6 @@ int main()
 				//frame.copyTo(writerFrame(cv::Rect(a, 0, a, b))); //original video
 			}
 			gFrame.upload(frame);
-			//gCompressed.release();
-			//gGray.release();
 			cuda::resize(gFrame, gCompressed, cv::Size(a / compression , b / compression ), 0.0, 0.0, cv::INTER_AREA);
 
 			cuda::cvtColor(gCompressed, gGray, COLOR_BGR2GRAY);
@@ -432,8 +440,8 @@ int main()
 			download(gStatus, status);
 			getBiasAndRotation(p0, p1, d, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
 			iirAdaptive(transforms, tauStab, roi, a, b, c, kSwitch, movement);
-			transforms[2].getTransform(TStab, a, b, c, atan_ba, framePart); //[1]
-			transforms[2].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart); //[1]
+			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart); //[1]
+			transforms[1].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart); //[1]
 
 			if (T.rows == 2 && T.cols == 3)
 			{

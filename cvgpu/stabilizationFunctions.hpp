@@ -127,17 +127,68 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d,
 }
 
 
-void addFramePoints(cuda::GpuMat& gOldGray,	vector<Point2f>& p0,
-	Ptr<cuda::CornersDetector>& d_features)
+//void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
+//	Ptr<cuda::CornersDetector>& d_features, Rect roi)
+//{
+//	cuda::GpuMat gAddP0;
+//	vector<Point2f> addP0;
+//	d_features->detect(gOldGray, gAddP0);
+//	gAddP0.download(addP0);
+//	//p0.insert(p0.end(), addP0.begin(), addP0.end());
+//	if (addP0.size() > 1)
+//	{
+//		for (uint i = 0; i < addP0.size(); i++)
+//		{
+//			addP0[i].x += roi.x;
+//			addP0[i].y += roi.y;
+//			p0.push_back(addP0[i]);
+//		}
+//	addP0.clear();
+//	}
+//}
+
+void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
+	Ptr<cuda::CornersDetector>& d_features, Rect roi)
 {
-	cuda::GpuMat gAddP0;
-	vector<Point2f> addP0;
-	d_features->detect(gOldGray, gAddP0);
-	gAddP0.download(addP0);
-	p0.insert(p0.end(), addP0.begin(), addP0.end());
-	addP0.clear();
-	
+	try {
+		cuda::GpuMat gAddP0;
+		vector<Point2f> addP0;
+
+		// Check if detector and input image are valid
+		if (d_features.empty() || gOldGray.empty()) {
+			cerr << "Error: Invalid detector or input image" << endl;
+			return;
+		}
+
+		// Detect features
+		d_features->detect(gOldGray, gAddP0);
+
+		// Download points from GPU to CPU
+		if (!gAddP0.empty()) {
+			gAddP0.download(addP0);
+		}
+
+		// Add points with ROI offset
+		if (!addP0.empty()) {
+			for (const auto& point : addP0) {
+				Point2f adjustedPoint;
+				adjustedPoint.x = point.x + roi.x;
+				adjustedPoint.y = point.y + roi.y;
+				p0.push_back(adjustedPoint);
+			}
+		}
+	}
+	catch (const cv::Exception& e) {
+		cerr << "OpenCV exception in addFramePoints: " << e.what() << endl;
+	}
+	catch (const exception& e) {
+		cerr << "Standard exception in addFramePoints: " << e.what() << endl;
+	}
+	catch (...) {
+		cerr << "Unknown exception in addFramePoints" << endl;
+	}
 }
+
 
 
 void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& movement)//, cv::KalmanFilter& KF)
