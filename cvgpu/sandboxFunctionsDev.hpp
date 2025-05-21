@@ -149,3 +149,23 @@ OrientationAngles estimateUAVOrientation(cv::cuda::GpuMat& currentFrame, cv::cud
 	// ќцениваем углы ориентации из гомографии
 	return estimateOrientationFromHomography(H, focalLength, cx, cy);
 }
+
+//void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
+//	Ptr<cuda::CornersDetector>& d_features, Rect roi)
+//{
+//	cuda::GpuMat gAddP0;
+//	vector<Point2f> addP0;
+//	d_features->detect(gOldGray, gAddP0);
+//	gAddP0.download(addP0);
+//	//p0.insert(p0.end(), addP0.begin(), addP0.end());
+//	if (addP0.size() > 1)
+//	{
+//		for (uint i = 0; i < addP0.size(); i++)
+//		{
+//			addP0[i].x += roi.x;
+//			addP0[i].y += roi.y;
+//			p0.push_back(addP0[i]);
+//		}
+//	addP0.clear();
+//	}
+//}

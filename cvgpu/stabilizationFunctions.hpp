@@ -99,7 +99,7 @@ void initFirstFrameZero(Mat& oldFrame, cuda::GpuMat& gOldFrame, cuda::GpuMat& gO
 	stab_possible = false;
 }
 
-void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, 
+void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d, Point2f& meanP0,
 	vector <TransformParam>& transforms, Mat& T, const int compression)
 {
 	const double N = 1.0;
@@ -108,11 +108,14 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d,
 		if (i == 0)
 		{
 			d = p1[0] - p0[0];
+			meanP0 = p1[0];
 		}
 		d = d + (p1[i] - p0[i]);
+		meanP0 = meanP0 + p1[i];
 	}
 
 	d = d * compression / (int)p0.size();
+	meanP0 = meanP0 * compression / (int)p0.size();
 
 	if (p0.empty() || p1.empty() || (p1.size() != p0.size()))
 	{
@@ -127,28 +130,10 @@ void getBiasAndRotation(vector<Point2f>& p0, vector<Point2f>& p1, Point2f& d,
 }
 
 
-//void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
-//	Ptr<cuda::CornersDetector>& d_features, Rect roi)
-//{
-//	cuda::GpuMat gAddP0;
-//	vector<Point2f> addP0;
-//	d_features->detect(gOldGray, gAddP0);
-//	gAddP0.download(addP0);
-//	//p0.insert(p0.end(), addP0.begin(), addP0.end());
-//	if (addP0.size() > 1)
-//	{
-//		for (uint i = 0; i < addP0.size(); i++)
-//		{
-//			addP0[i].x += roi.x;
-//			addP0[i].y += roi.y;
-//			p0.push_back(addP0[i]);
-//		}
-//	addP0.clear();
-//	}
-//}
+
 
 void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
-	Ptr<cuda::CornersDetector>& d_features, Rect roi)
+	Ptr<cuda::CornersDetector>& d_features, cuda::GpuMat& gMaskSearchSmall)
 {
 	try {
 		cuda::GpuMat gAddP0;
@@ -156,12 +141,12 @@ void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
 
 		// Check if detector and input image are valid
 		if (d_features.empty() || gOldGray.empty()) {
-			cerr << "Error: Invalid detector or input image" << endl;
+			//cerr << "Error: Invalid detector or input image" << endl;
 			return;
 		}
 
 		// Detect features
-		d_features->detect(gOldGray, gAddP0);
+		d_features->detect(gOldGray, gAddP0, gMaskSearchSmall);
 
 		// Download points from GPU to CPU
 		if (!gAddP0.empty()) {
@@ -172,8 +157,8 @@ void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
 		if (!addP0.empty()) {
 			for (const auto& point : addP0) {
 				Point2f adjustedPoint;
-				adjustedPoint.x = point.x + roi.x;
-				adjustedPoint.y = point.y + roi.y;
+				adjustedPoint.x = point.x;
+				adjustedPoint.y = point.y;
 				p0.push_back(adjustedPoint);
 			}
 		}
@@ -189,12 +174,89 @@ void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
 	}
 }
 
+void addFramePoints(cuda::GpuMat& gOldGray, vector<Point2f>& p0,
+	Ptr<cuda::CornersDetector>& d_features)
+{
+	try {
+		cuda::GpuMat gAddP0;
+		vector<Point2f> addP0;
 
+		// Check if detector and input image are valid
+		if (d_features.empty() || gOldGray.empty()) {
+			//cerr << "Error: Invalid detector or input image" << endl;
+			return;
+		}
+
+		// Detect features
+		d_features->detect(gOldGray, gAddP0);
+
+		// Download points from GPU to CPU
+		if (!gAddP0.empty()) {
+			gAddP0.download(addP0);
+		}
+
+		// Add points with ROI offset
+		if (!addP0.empty()) {
+			for (const auto& point : addP0) {
+				Point2f adjustedPoint;
+				adjustedPoint.x = point.x;
+				adjustedPoint.y = point.y;
+				p0.push_back(adjustedPoint);
+			}
+		}
+	}
+	catch (const cv::Exception& e) {
+		cerr << "OpenCV exception in addFramePoints: " << e.what() << endl;
+	}
+	catch (const exception& e) {
+		cerr << "Standard exception in addFramePoints: " << e.what() << endl;
+	}
+	catch (...) {
+		cerr << "Unknown exception in addFramePoints" << endl;
+	}
+}
+
+void removeFramePoints(vector<Point2f>& p0, double minDistance)
+{
+	if (p0.empty()) return;
+
+	// 1. Сортируем точки по X (для ускорения проверки соседей)
+	std::sort(p0.begin(), p0.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+		return a.x < b.x;
+		});
+
+	// 2. Проверяем расстояния и помечаем точки на удаление
+	std::vector<bool> toRemove(p0.size(), false);
+	for (size_t i = 0; i < p0.size(); ++i) {
+		if (toRemove[i]) continue; // Уже помечена на удаление
+
+		for (size_t j = i + 1; j < p0.size(); ++j) {
+			if (p0[j].x - p0[i].x > minDistance) {
+				break; // Дальние точки можно не проверять (благодаря сортировке)
+			}
+
+			float dx = p0[j].x - p0[i].x;
+			float dy = p0[j].y - p0[i].y;
+			float distanceSq = dx * dx + dy * dy;
+
+			if (distanceSq < minDistance * minDistance) {
+				toRemove[j] = true; // Помечаем точку j на удаление
+			}
+		}
+	}
+
+	// 3. Удаляем помеченные точки (с конца, чтобы не нарушать индексы)
+	for (int i = p0.size() - 1; i >= 0; --i) {
+		if (toRemove[i]) {
+			p0.erase(p0.begin() + i);
+		}
+	}
+}
 
 void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi, const int a, const int b, const double c, double& kSwitch, vector<TransformParam>& movement)//, cv::KalmanFilter& KF)
 {
 	//if ((abs(transforms[0].dx) - 10.0 < 1.2 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 1.2 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 1.2 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
-	if ((abs(transforms[0].dx) - 10.0 < 3.0 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 3.0 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 3.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
+	if ((abs(transforms[0].dx) - 10.0 < 4.0 * transforms[3].dx) && (abs(transforms[0].dy) - 10.0 < 4.0 * transforms[3].dy) && (abs(transforms[0].da) - 0.02 < 4.0 * transforms[3].da))//проверка на выброс и предельно минимальную амплитуду отклонения
 	{
 		transforms[1].dx = kSwitch * (transforms[1].dx * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dx) - movement[1].dx; //накопление по перемещнию внутри кадра
 		transforms[1].dy = kSwitch * (transforms[1].dy * (tau_stab - 1.0) / tau_stab + kSwitch * transforms[0].dy) - movement[1].dy;
@@ -213,11 +275,11 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (tau_stab < 50.0 && !(abs(transforms[1].dx) > a / 2 || abs(transforms[1].dy) > b / 2))
 		tau_stab *= 1.1;
 
-	if (tau_stab < 120.0 && !(abs(transforms[1].dx) > a / 3 || abs(transforms[1].dy) > b / 3))
+	if (tau_stab < 180.0 && !(abs(transforms[1].dx) > a / 3 || abs(transforms[1].dy) > b / 3))
 	{
 		tau_stab *= 1.1;
-		if (tau_stab > 120.0)
-			tau_stab = 120.0;
+		if (tau_stab > 180.0)
+			tau_stab = 180.0;
 	}
 
 
@@ -280,21 +342,21 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 
 
 
-	movement[2].dx = (movement[2].dx*3 + movement[1].dx - transforms[0].dx)/4; //velocities first derivative 
-	movement[2].dy = (movement[2].dy*3 + movement[1].dy - transforms[0].dy)/4; //velocities first derivative
-	movement[2].da = (movement[2].da*3 + movement[1].da - transforms[0].da)/4; //velocities first derivative
+	movement[2].dx = (movement[2].dx*63 + movement[1].dx - transforms[0].dx)/64; //acceleration second derivative 
+	movement[2].dy = (movement[2].dy*63 + movement[1].dy - transforms[0].dy)/64; //acceleration second derivative
+	movement[2].da = (movement[2].da*63 + movement[1].da - transforms[0].da)/64; //acceleration second derivative
 
-	movement[1].dy = (movement[1].dy*15 + transforms[0].dy)/16; //velocities first derivative
-	movement[1].da = (movement[1].da*15 + transforms[0].da)/16; //velocities first derivative
-	movement[1].dx = (movement[1].dx*15 + transforms[0].dx)/16; //velocities first derivative 
+	movement[1].dy = (movement[1].dy*31 + transforms[0].dy)/32; //velocity first derivative
+	movement[1].da = (movement[1].da*31 + transforms[0].da)/32; //velocity first derivative
+	movement[1].dx = (movement[1].dx*31 + transforms[0].dx)/32; //velocity first derivative 
 
-	movement[0].dy = movement[1].dy + movement[0].dy*127/128; //coordinates
-	movement[0].da = movement[1].da + movement[0].da*127/128; //coordinates
-	movement[0].dx = movement[1].dx + movement[0].dx*127/128; //coordinates
+	movement[0].dy = movement[1].dy + movement[0].dy*31/32; //coordinate
+	movement[0].da = movement[1].da + movement[0].da*31/32; //coordinate
+	movement[0].dx = movement[1].dx + movement[0].dx*31/32; //coordinate
 
-	transforms[2].dx = transforms[1].dx; // - movement[1].dx; //coordinates
-	transforms[2].dy = transforms[1].dy; // - movement[1].dy; //coordinates
-	transforms[2].da = transforms[1].da; // - movement[1].da; //coordinates
+	transforms[2].dx = transforms[1].dx; // - movement[1].dx; //coordinate
+	transforms[2].dy = transforms[1].dy; // - movement[1].dy; //coordinate
+	transforms[2].da = transforms[1].da; // - movement[1].da; //coordinate
 
 
 

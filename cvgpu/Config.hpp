@@ -16,7 +16,7 @@ using namespace std;
 //string videoSource = "http://10.108.144.71:4747/video"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "http://10.139.27.71:4747/video"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "http://192.168.0.103:4747/video"; // pad6-100, pixel4-101, pixel-102
-//string videoSource = "http://192.168.0.100:4747/video"; // pad6-100, pixel4-101, pixel-102
+//string videoSource = "http://192.168.0.100:4747/video"; // pixel4
 //string videoSource = "./SourceVideos/moveUpForest.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/treeshd.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/treesfhd.mp4"; // pad6-100, pixel4-101, pixel-102
@@ -26,6 +26,7 @@ using namespace std;
 //string videoSource = "./SourceVideos/Pixel_Vysota_parkfhd60fps.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/ShakedVideo.avi"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/moveAlongRoad.mp4"; // pad6-100, pixel4-101, pixel-102
+//string videoSource = "./SourceVideos/ShakedVideo.avi"; // pad6-100, pixel4-101, pixel-102
 int videoSource = 0;
 
 bool writeVideo = true;
@@ -47,4 +48,3 @@ bool useGray = true;
 int winSize = blockSize;
 int maxLevel = 3 + 4/compression;
 int iters = 10;
-double minDist = minDistance;

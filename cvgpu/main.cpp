@@ -25,8 +25,9 @@ int main()
 	// детектор для поиска характерных точек
 	Ptr<cuda::CornersDetector > d_features = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
 		maxCorners, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
+
 	Ptr<cuda::CornersDetector > d_features_small = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
-		5, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
+		30, qualityLevel/2, minDistance, blockSize, useHarrisDetector, harrisK);
 
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
@@ -37,7 +38,8 @@ int main()
 	cuda::GpuMat gP0, gP1;
 
 	Point2f d = Point2f(0.0f, 0.0f);
-	Mat T, TStab(2, 3, CV_64F), TStabInv(2, 3, CV_64F);
+	Point2f meanP0 = Point2f(0.0f, 0.0f);
+	Mat T, TStab(2, 3, CV_64F), TStabInv(2, 3, CV_64F), TSearchPoints(2, 3, CV_64F);
 	cuda::GpuMat gT, gTStab(2, 3, CV_64F);
 
 
@@ -201,9 +203,15 @@ int main()
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	Mat maskSearch = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
-	cv::rectangle(maskSearch, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
+	cv::rectangle(maskSearch, Rect(a * (1.0 - 0.9) / compression / 2, b * (1.0 - 0.9) / compression / 2, a * 0.9, b * 0.9 / compression ), 
 		Scalar(255), FILLED); // Прямоугольная маска
 	cuda::GpuMat gMaskSearch(maskSearch);
+
+	Mat maskSearchSmall = Mat::zeros(cv::Size(a / compression, b / compression), CV_8U);
+	cv::rectangle(maskSearchSmall, Rect(a * (1.0 - 0.4) / compression / 2, b * (1.0 - 0.4) / compression / 2, a * 0.4 / compression, b * 0.4 / compression),
+		Scalar(255), FILLED); // Прямоугольная маска
+	cuda::GpuMat gMaskSearchSmall(maskSearchSmall);
+	cuda::GpuMat gMaskSearchSmallRoi;
 
 	Mat roiMask = Mat::zeros(cv::Size(a / compression, b / compression), CV_8U);
 	cv::rectangle(roiMask, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression),
@@ -273,72 +281,30 @@ int main()
 		secondsGPUPing = 0.96 * secondsGPUPing + 0.04 * (double)(endGPUPing - startGPUPing) / CLOCKS_PER_SEC;
 		if (stabPossible) {
 			good_new.clear();
-
-
-			// 1. Рассчет средней ошибки для успешно отслеженных точек
-			float total_error = 0.0f;
-			int valid_points = 0;
-
-			for (int i = 0; i < p1.size(); ++i) {
-				if (status[i]) { // Точка успешно отслежена
-					total_error += err.at<float>(0, i);
-					valid_points++;
-				}
-			}
-
-			float mean_error = (valid_points > 0) ? total_error / valid_points : 0.0f;
-
-			// 2. Фильтрация точек по средней ошибке (например, порог = mean_error * 2)
-			float error_threshold = mean_error * 3.0f;
-
-
-
 			for (uint i = 0; i < p1.size(); ++i)
 			{
-				//if (((p1[i].x - p0[i].x)* (p1[i].x - p0[i].x) + (p1[i].y - p0[i].y) * (p1[i].y - p0[i].y)) < 3*(transforms[0].dx * transforms[0].dx + transforms[0].dy * transforms[0].dy) &&
-				//	status[i] && p1[i].x < (double)(a*31 / 32) && p1[i].x > (double)(a * 1 / 32) && 
-				//	p1[i].y < (double)(b * 31 / 32) && p1[i].y > (double)(b * 1 / 16)) 
 				if (status[i] && p1[i].x < (double)(a*31 / 32) && p1[i].x > (double)(a * 1 / 32) && 
 					p1[i].y < (double)(b * 31 / 32) && p1[i].y > (double)(b * 1 / 16) 
-					//&& err.at<float>(0, i) < mean_error*3.0f
-					//&& err.at<float>(0, i) > mean_error*0.5f
-					&& (p1[i].x - p0[i].x - d.x) > -mean_error*0.7f
-					&& (p1[i].x - p0[i].x - d.x) <  mean_error*0.7f
-					&& (p1[i].y - p0[i].y - d.y) > -mean_error*0.7f
-					&& (p1[i].y - p0[i].y - d.y) <  mean_error*0.7f
 					)
 				{
-					//p1[i].x;
-					//p1[i].y;
 					good_new.push_back(p1[i]);
 				}
 			}
-
 			p0.clear();
 			p0 = good_new;
-
-			if (p1.size() < double(maxCorners * 5 / 7) && rng.uniform(0.0, 1.0) < 0.9)
-			{
-				for (uint i = 0; i < abs((int)(movement[1].dx + movement[1].dy))*2 + 1; ++i)
-				{
-					p0.push_back(Point2f(transforms[1].dx/compression / 2 + a / compression/2 + rng.uniform(-a / compression / 4, a / compression / 4),
-						transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4)));
-				}
-
-				//провести допоиск точек в кадре gGray
-				//Rect tmpRoi = Rect(
-				//	1,
-				//	1,
-				//	a / compression,
-				//	b / compression
-				//);
-				//gRoiGray = gGray(tmpRoi);
-
-				//addFramePoints(gGray, p0, d_features_small, tmpRoi);
-			}
 			
+				movement[0].getTransformBoost(TSearchPoints, a, b, rng);
+				cuda::warpAffine(gMaskSearchSmall, gMaskSearchSmallRoi, TSearchPoints, gMaskSearchSmall.size());
+				Mat tmp;
+				gMaskSearchSmallRoi.download(tmp);
+				imshow("mask", tmp);
+			if (p1.size() < double(maxCorners * 5 / 7) || abs(meanP0.x - a/2) < a/8 || abs(meanP0.y - b / 2) < b / 8)
+			{
+				addFramePoints(gGray, p0, d_features_small, gMaskSearchSmallRoi);
+				//addFramePoints(gGray, p0, d_features_small);
+			}
 
-
+			removeFramePoints(p0, minDistance*0.8);
 
 			gGray.copyTo(gOldGray);
 			gP0.upload(p0);
@@ -438,7 +404,7 @@ int main()
 		}
 		if (stabPossible) {
 			download(gStatus, status);
-			getBiasAndRotation(p0, p1, d, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
+			getBiasAndRotation(p0, p1, d, meanP0, transforms, T, compression); //уже можно делать Винеровскую фильтрацию
 			iirAdaptive(transforms, tauStab, roi, a, b, c, kSwitch, movement);
 			transforms[1].getTransform(TStab, a, b, c, atan_ba, framePart); //[1]
 			transforms[1].getTransformInvert(TStabInv, a, b, c, atan_ba, framePart); //[1]

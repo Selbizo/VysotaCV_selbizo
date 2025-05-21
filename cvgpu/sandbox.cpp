@@ -24,7 +24,7 @@
 //    RNG rng;
 //
 //    // use default camera as video source
-//    VideoCapture cap("SourceVideos/moveAlongRoad.mp4");
+//    VideoCapture cap(videoSource);
 //    //VideoCapture cap(0);
 //    // check if we succeeded
 //    if (!cap.isOpened()) {
@@ -72,9 +72,9 @@
 //            cerr << "Ending.\n";
 //            break;
 //        }
-//        noise.dx = (double)(rng.uniform(-100, 100) / 10) / 4 + noise.dx * 3 / 4;
-//        noise.dy = (double)(rng.uniform(-100, 100) / 10) / 4 + noise.dy * 3 / 4;
-//        noise.da = (double)(rng.uniform(-20, 20) / 30) / 4 + noise.da * 3 / 4;
+//        noise.dx = (double)(rng.uniform(-100, 100)) / 4 + noise.dx * 3 / 4;
+//        noise.dy = (double)(rng.uniform(-100, 100)) / 4 + noise.dy * 3 / 4;
+//        noise.da = (double)(rng.uniform(-1000, 1000) * 0.0001) / 4 + noise.da * 3 / 4;
 //
 //        noise.getTransform(TStab);
 //        warpAffine(src, out, TStab, src.size());
@@ -84,7 +84,7 @@
 //        writer.write(out);
 //        // show live and wait for a key with timeout long enough to show images
 //        imshow("Live", out);
-//        if (waitKey(5) >= 0)
+//        if (waitKey(1) >= 0)
 //            break;
 //    }
 //    // the videofile will be closed and released automatically in VideoWriter destructor

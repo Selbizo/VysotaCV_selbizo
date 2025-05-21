@@ -82,6 +82,16 @@ struct TransformParam
 		T.at<double>(1, 2) = -dy;
 
 	}
+
+	const void getTransformBoost(Mat& T, const int a, const int b, RNG rng)
+	{
+		T.at<double>(0, 0) = cos(0.0);
+		T.at<double>(0, 1) = -sin(0.0);
+		T.at<double>(1, 0) = sin(0.0);
+		T.at<double>(1, 1) = cos(0.0);
+		T.at<double>(0, 2) = 1*a*atan(dx*0.02)/4;
+		T.at<double>(1, 2) = 1*b*atan(dy*0.02)/4;
+	}
 };
 
 static void download(const cuda::GpuMat& d_mat, vector<Point2f>& vec)
