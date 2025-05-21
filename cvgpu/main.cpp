@@ -132,6 +132,8 @@ int main()
 		gOldCompressed(a / compression, b / compression, CV_8UC3);
 	cuda::GpuMat gToShow(a, b, CV_8UC3);
 
+	cuda::GpuMat gRoiGray;
+
 	Rect roi;
 	roi.x = a * ((1.0 - framePart) / 2.0);
 	roi.y = b * ((1.0 - framePart) / 2.0);
@@ -197,10 +199,15 @@ int main()
 
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создадим маску для нахождения точек~~~~~~~~~~~~~~~~~~~~~~~~~~~
-	Mat mask_host = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
-	cv::rectangle(mask_host, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
+	Mat maskSearch = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
+	cv::rectangle(maskSearch, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression ), 
 		Scalar(255), FILLED); // Прямоугольная маска
-	cuda::GpuMat mask_device(mask_host);
+	cuda::GpuMat gMaskSearch(maskSearch);
+
+	Mat roiMask = Mat::zeros(cv::Size(a / compression, b / compression), CV_8U);
+	cv::rectangle(roiMask, Rect(a * (1.0 - 0.8) / compression / 2, b * (1.0 - 0.8) / compression / 2, a * 0.8, b * 0.8 / compression),
+		Scalar(255), FILLED); // Прямоугольная маска
+	//cuda::GpuMat gRoiMask(roiMask);
 
 	//~~~~~~~~~~~~~~~~~~~~~~~~~~~Создаем GpuMat для мнимой части фильтра Винера~~~~~~~~~~~~~~~~~~~~~~~~~~~
 	cuda::GpuMat zeroMatH(cv::Size(a, b), CV_32F, Scalar(0)), complexH;
@@ -252,7 +259,7 @@ int main()
 	while (true) {
 		initFirstFrame(capture, oldFrame, gOldFrame, gOldCompressed, gOldGray, 
 			gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
-			kSwitch, a, b, compression , mask_device, stabPossible);
+			kSwitch, a, b, compression , gMaskSearch, stabPossible);
 		if (stabPossible)
 			break;
 	}
@@ -264,15 +271,50 @@ int main()
 
 		secondsGPUPing = 0.96 * secondsGPUPing + 0.04 * (double)(endGPUPing - startGPUPing) / CLOCKS_PER_SEC;
 		if (stabPossible) {
-			p0.clear();
-			for (uint i = 0; i < p1.size(); ++i)
-			{
-				if (status[i] && p1[i].x < (double)(a*31 / 32) && p1[i].x > (double)(a * 1 / 32) && p1[i].y < (double)(b * 31 / 32) && p1[i].y > (double)(b * 1 / 16)) {
-					p1[i].x;
-					p1[i].y;
-					p0.push_back(p1[i]); // Выбор точек good_new
+			good_new.clear();
+
+
+			// 1. Рассчет средней ошибки для успешно отслеженных точек
+			float total_error = 0.0f;
+			int valid_points = 0;
+
+			for (int i = 0; i < p1.size(); ++i) {
+				if (status[i]) { // Точка успешно отслежена
+					total_error += err.at<float>(0, i);
+					valid_points++;
 				}
 			}
+
+			float mean_error = (valid_points > 0) ? total_error / valid_points : 0.0f;
+
+			// 2. Фильтрация точек по средней ошибке (например, порог = mean_error * 2)
+			float error_threshold = mean_error * 3.0f;
+
+
+
+			for (uint i = 0; i < p1.size(); ++i)
+			{
+				//if (((p1[i].x - p0[i].x)* (p1[i].x - p0[i].x) + (p1[i].y - p0[i].y) * (p1[i].y - p0[i].y)) < 3*(transforms[0].dx * transforms[0].dx + transforms[0].dy * transforms[0].dy) &&
+				//	status[i] && p1[i].x < (double)(a*31 / 32) && p1[i].x > (double)(a * 1 / 32) && 
+				//	p1[i].y < (double)(b * 31 / 32) && p1[i].y > (double)(b * 1 / 16)) 
+				if (status[i] && p1[i].x < (double)(a*31 / 32) && p1[i].x > (double)(a * 1 / 32) && 
+					p1[i].y < (double)(b * 31 / 32) && p1[i].y > (double)(b * 1 / 16) 
+					//&& err.at<float>(0, i) < mean_error*3.0f
+					//&& err.at<float>(0, i) > mean_error*0.5f
+					&& (p1[i].x - p0[i].x - d.x) > -mean_error*0.7f
+					&& (p1[i].x - p0[i].x - d.x) <  mean_error*0.7f
+					&& (p1[i].y - p0[i].y - d.y) > -mean_error*0.7f
+					&& (p1[i].y - p0[i].y - d.y) <  mean_error*0.7f
+					)
+				{
+					//p1[i].x;
+					//p1[i].y;
+					good_new.push_back(p1[i]);
+				}
+			}
+
+			p0.clear();
+			p0 = good_new;
 
 			if (p1.size() < double(maxCorners * 5 / 7) && rng.uniform(0.0, 1.0) < 0.9)
 			{
@@ -282,6 +324,11 @@ int main()
 						transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4)));
 				}
 			}
+			
+			//провести допоиск точек в кадре gGray
+			gRoiGray = gGray(Rect(transforms[1].dx / compression / 2 + a / compression / 2 + rng.uniform(-a / compression / 4, a / compression / 4), transforms[1].dy / compression / 2 + b / compression / 2 + rng.uniform(-b / compression / 4, b / compression / 4));
+			addFramePoints(gOldGray, p0, d_features);
+
 
 			gGray.copyTo(gOldGray);
 			gP0.upload(p0);
@@ -356,12 +403,12 @@ int main()
 			{
 				initFirstFrame(capture, oldFrame, gOldFrame, gOldGray, gOldCompressed, 
 					gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
-					kSwitch, a, b, compression , mask_device, stabPossible); //70ms
+					kSwitch, a, b, compression , gMaskSearch, stabPossible); //70ms
 			} 
 			else
 				initFirstFrameZero(oldFrame, gOldFrame, gOldGray, gOldCompressed, 
 					gP0, p0, qualityLevel, harrisK, maxCorners, d_features, transforms, 
-					kSwitch, a, b, compression , mask_device, stabPossible); //70ms
+					kSwitch, a, b, compression , gMaskSearch, stabPossible); //70ms
 
 			if (stabPossible) {
 				d_pyrLK_sparse->calc(gOldGray, gCompressed, gP0, gP1, gStatus, gErr);
@@ -555,7 +602,7 @@ int main()
 		}
 
 		// Ожидание внешних команд управления с клавиатуры
-		int keyboard = waitKey(1);
+		int keyboard = waitKey(40);
 		if (keyResponse(keyboard, frame, frameStabilizatedCropResized, crossRef, gCrossRef, a, b, nsr, wiener, threadwiener, Q, tauStab, framePart, roi))
 			break;
 		endFullPing = clock();
