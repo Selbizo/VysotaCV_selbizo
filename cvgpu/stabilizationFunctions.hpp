@@ -275,11 +275,11 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	if (tau_stab < 50.0 && !(abs(transforms[1].dx) > a / 2 || abs(transforms[1].dy) > b / 2))
 		tau_stab *= 1.1;
 
-	if (tau_stab < 180.0 && !(abs(transforms[1].dx) > a / 3 || abs(transforms[1].dy) > b / 3))
+	if (tau_stab < 100.0 && !(abs(transforms[1].dx) > a / 3 || abs(transforms[1].dy) > b / 3))
 	{
 		tau_stab *= 1.1;
-		if (tau_stab > 180.0)
-			tau_stab = 180.0;
+		if (tau_stab > 100.0)
+			tau_stab = 100.0;
 	}
 
 
@@ -346,9 +346,9 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 	movement[2].dy = (movement[2].dy*63 + movement[1].dy - transforms[0].dy)/64; //acceleration second derivative
 	movement[2].da = (movement[2].da*63 + movement[1].da - transforms[0].da)/64; //acceleration second derivative
 
-	movement[1].dy = (movement[1].dy*31 + transforms[0].dy)/32; //velocity first derivative
-	movement[1].da = (movement[1].da*31 + transforms[0].da)/32; //velocity first derivative
-	movement[1].dx = (movement[1].dx*31 + transforms[0].dx)/32; //velocity first derivative 
+	movement[1].dy = (movement[1].dy*127 + transforms[0].dy)/128; //velocity first derivative
+	movement[1].da = (movement[1].da*127 + transforms[0].da)/128; //velocity first derivative
+	movement[1].dx = (movement[1].dx*127 + transforms[0].dx)/128; //velocity first derivative 
 
 	movement[0].dy = movement[1].dy + movement[0].dy*31/32; //coordinate
 	movement[0].da = movement[1].da + movement[0].da*31/32; //coordinate

@@ -27,7 +27,7 @@ int main()
 		maxCorners, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
 
 	Ptr<cuda::CornersDetector > d_features_small = cv::cuda::createGoodFeaturesToTrackDetector(srcType,
-		30, qualityLevel/2, minDistance, blockSize, useHarrisDetector, harrisK);
+		40, qualityLevel, minDistance, blockSize, useHarrisDetector, harrisK);
 
 	Ptr<cuda::SparsePyrLKOpticalFlow> d_pyrLK_sparse = cuda::SparsePyrLKOpticalFlow::create(
 		cv::Size(winSize, winSize), maxLevel, iters);
@@ -208,7 +208,7 @@ int main()
 	cuda::GpuMat gMaskSearch(maskSearch);
 
 	Mat maskSearchSmall = Mat::zeros(cv::Size(a / compression, b / compression), CV_8U);
-	cv::rectangle(maskSearchSmall, Rect(a * (1.0 - 0.4) / compression / 2, b * (1.0 - 0.4) / compression / 2, a * 0.4 / compression, b * 0.4 / compression),
+	cv::rectangle(maskSearchSmall, Rect(a * (1.0 - 0.3) / compression / 2, b * (1.0 - 0.3) / compression / 2, max(a,b) * 0.3 / compression, max(a,b) * 0.3 / compression),
 		Scalar(255), FILLED); // Прямоугольная маска
 	cuda::GpuMat gMaskSearchSmall(maskSearchSmall);
 	cuda::GpuMat gMaskSearchSmallRoi;
@@ -293,18 +293,18 @@ int main()
 			p0.clear();
 			p0 = good_new;
 			
-				movement[0].getTransformBoost(TSearchPoints, a, b, rng);
-				cuda::warpAffine(gMaskSearchSmall, gMaskSearchSmallRoi, TSearchPoints, gMaskSearchSmall.size());
-				Mat tmp;
-				gMaskSearchSmallRoi.download(tmp);
-				imshow("mask", tmp);
-			if (p1.size() < double(maxCorners * 5 / 7) || abs(meanP0.x - a/2) < a/8 || abs(meanP0.y - b / 2) < b / 8)
+			if (p1.size() < double(maxCorners * 5 / 7) && (abs(meanP0.x - a / 2) < a / 6 || abs(meanP0.y - b / 2) < b / 6))
 			{
+				movement[1].getTransformBoost(TSearchPoints, a, b, rng);
+				cuda::warpAffine(gMaskSearchSmall, gMaskSearchSmallRoi, TSearchPoints, gMaskSearchSmall.size());
+				//Mat tmp;
+				//gMaskSearchSmallRoi.download(tmp);
+				//resize(tmp, tmp, Size(1080 * a / b, 1080));
+				//imshow("mask", tmp);
 				addFramePoints(gGray, p0, d_features_small, gMaskSearchSmallRoi);
-				//addFramePoints(gGray, p0, d_features_small);
+				removeFramePoints(p0, minDistance*0.8);
 			}
 
-			removeFramePoints(p0, minDistance*0.8);
 
 			gGray.copyTo(gOldGray);
 			gP0.upload(p0);
@@ -312,7 +312,7 @@ int main()
 				kSwitch = 0.01;
 			if (kSwitch < 1.0)
 			{
-				kSwitch *= 1.04;
+				kSwitch *= 1.06;
 				kSwitch += 0.005;
 
 			}else if (kSwitch > 1.0)

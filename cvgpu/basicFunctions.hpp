@@ -89,8 +89,8 @@ struct TransformParam
 		T.at<double>(0, 1) = -sin(0.0);
 		T.at<double>(1, 0) = sin(0.0);
 		T.at<double>(1, 1) = cos(0.0);
-		T.at<double>(0, 2) = 1*a*atan(dx*0.02)/4;
-		T.at<double>(1, 2) = 1*b*atan(dy*0.02)/4;
+		T.at<double>(0, 2) = a*atan((dx)*0.4)/4 + rng.uniform(-10, 10);
+		T.at<double>(1, 2) = b*atan((dy)*0.4)/4 + rng.uniform(-10, 10);
 	}
 };
 
@@ -328,8 +328,13 @@ void showServiceInfo(Mat& writerFrame, double Q, double nsr, bool wiener, bool t
 		//textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
 	cv::putText(writerFrame, format("Wnr On[1] %d, threads On[t] %d, stab On %d", wiener, threadwiener, stabPossible),
 		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+	cv::putText(writerFrame, format("[vX vY vRoll] %2.1f %2.1f %2.1f]", transforms[1].dx, transforms[1].dy, transforms[1].da * RAD_TO_DEG),
+		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
 	cv::putText(writerFrame, format("[X Y Roll] %2.1f %2.1f %2.1f]", transforms[2].dx, transforms[2].dy, transforms[2].da * RAD_TO_DEG),
 		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
+
+
+	++temp_i;++temp_i;
 	cv::putText(writerFrame, format(" X %2.1f  Y %2.1f  Roll %2.1f", movement[0].dx, movement[0].dy, movement[0].da * RAD_TO_DEG),
 		textOrg[temp_i], fontFace, fontScale , color, 2, 8, false); ++temp_i;
 	cv::putText(writerFrame, format("vX %2.1f vY %2.1f vRoll %2.1f", movement[1].dx, movement[1].dy, movement[1].da * RAD_TO_DEG),
@@ -344,7 +349,7 @@ void showServiceInfo(Mat& writerFrame, double Q, double nsr, bool wiener, bool t
 		textOrg[temp_i], fontFace, fontScale / 1.2, color, 2, 8, false); ++temp_i;
 	cv::putText(writerFrame, format("ORIGINAL VIDEO"), textOrgOrig[0], fontFace, fontScale * 1.3, color, 2, 8, false);
 	cv::putText(writerFrame, format("Stab OFF"), textOrgCrop[0], fontFace, fontScale * 1.3, colorRED, 2, 8, false);
-	cv::putText(writerFrame, format("Stab ON"), textOrgStab[0], fontFace, fontScale * 1.3, color, 2, 8, false);
+	cv::putText(writerFrame, format("Stab ON"), textOrgStab[0], fontFace, fontScale * 1.3, colorGREEN, 2, 8, false);
 
 }
 

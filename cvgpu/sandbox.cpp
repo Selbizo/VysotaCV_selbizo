@@ -17,7 +17,10 @@
 //using namespace cv;
 //using namespace std;
 //
-//int NOTmain(int, char**)
+//
+//
+//
+//int main(int, char**)
 //{
 //    Mat src, out, TStab(2, 3, CV_64F);
 //    TransformParam noise = { 0.0, 0.0, 0.0 };
@@ -64,6 +67,16 @@
 //    //--- GRAB AND WRITE LOOP
 //    cout << "Writing videofile: " << filename << endl
 //        << "Press any key to terminate" << endl;
+//
+//    //~~~~~~~~~~~~~~~~~~~~~~~~~~~Создаем объект для записи отклонения в CSV файл~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//    std::ofstream outputFile("./OutputResults/StabOutputs.txt");
+//    if (!outputFile.is_open())
+//    {
+//        cout << "Не удалось открыть файл для записи" << endl;
+//        return -1;
+//    }
+//
+//
 //    for (;;)
 //    {
 //        cap >> src;
@@ -72,9 +85,9 @@
 //            cerr << "Ending.\n";
 //            break;
 //        }
-//        noise.dx = (double)(rng.uniform(-100, 100)) / 4 + noise.dx * 3 / 4;
-//        noise.dy = (double)(rng.uniform(-100, 100)) / 4 + noise.dy * 3 / 4;
-//        noise.da = (double)(rng.uniform(-1000, 1000) * 0.0001) / 4 + noise.da * 3 / 4;
+//        noise.dx = (double)(rng.uniform(-100.0, 100.0)) / 32 + noise.dx * 31 / 32;
+//        noise.dy = (double)(rng.uniform(-100.0, 100.0)) / 32 + noise.dy * 31 / 32;
+//        noise.da = (double)(rng.uniform(-1000.0, 1000.0) * 0.0001) / 32 + noise.da * 31 / 32;
 //
 //        noise.getTransform(TStab);
 //        warpAffine(src, out, TStab, src.size());
