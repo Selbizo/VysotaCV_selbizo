@@ -103,3 +103,49 @@
 //    // the videofile will be closed and released automatically in VideoWriter destructor
 //    return 0;
 //}
+
+//#include "Config.hpp"
+//#include "basicFunctions.hpp"
+//#include "stabilizationFunctions.hpp"
+//
+//int main() {
+//    // System dimensions
+//    int state_dim = 4;  // vx, vy, ax, ay
+//    int meas_dim = 2;   // vx, vy
+//
+//    // Create system matrices
+//    double FPS = 30.0;
+//    double dt = 1;//1 / FPS;
+//    cv::Mat A = (cv::Mat_<double>(4, 4) <<
+//        1, 0, dt, 0,
+//        0, 1, 0, dt,
+//        0, 0, 1, 0,
+//        0, 0, 0, 1);
+//
+//    cv::Mat C = (cv::Mat_<double>(2, 4) <<
+//        1, 0, 0, 0,
+//        0, 1, 0, 0);
+//
+//    cv::Mat Q = cv::Mat::eye(4, 4, CV_64F) * 0.01;
+//    cv::Mat R = cv::Mat::eye(2, 2, CV_64F) * 0.1;
+//    cv::Mat P = cv::Mat::eye(4, 4, CV_64F) * 1;
+//
+//    // Create Kalman filter
+//    KalmanFilterCV kf(dt, A, C, Q, R, P);
+//
+//    // Initialize with first measurement
+//    cv::Mat x0 = (cv::Mat_<double>(4, 1) << 0, 0, 0, 0);
+//    kf.init(0, x0);
+//
+//    // Simulate measurements and update
+//    for (int i = 0; i < 40; i++) {
+//        cv::Mat measurement = (cv::Mat_<double>(2, 1) << i * 1.0, i * 0.5);
+//        std::cout << "measurement: " << measurement.t() << std::endl;
+//        kf.update(measurement);
+//
+//        cv::Mat state = kf.state();
+//        std::cout << "State: " << state.t() << std::endl;
+//    }
+//
+//    return 0;
+//}

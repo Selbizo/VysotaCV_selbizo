@@ -342,13 +342,13 @@ void iirAdaptive(vector<TransformParam>& transforms, double& tau_stab, Rect& roi
 
 
 
-	movement[2].dx = (movement[2].dx*63 + movement[1].dx - transforms[0].dx)/64; //acceleration second derivative 
-	movement[2].dy = (movement[2].dy*63 + movement[1].dy - transforms[0].dy)/64; //acceleration second derivative
-	movement[2].da = (movement[2].da*63 + movement[1].da - transforms[0].da)/64; //acceleration second derivative
+	//movement[2].dx = (movement[2].dx*63 + movement[1].dx - transforms[0].dx)/64; //acceleration second derivative 
+	//movement[2].dy = (movement[2].dy*63 + movement[1].dy - transforms[0].dy)/64; //acceleration second derivative
+	//movement[2].da = (movement[2].da*63 + movement[1].da - transforms[0].da)/64; //acceleration second derivative
 
-	movement[1].dy = (movement[1].dy*127 + transforms[0].dy)/128; //velocity first derivative
-	movement[1].da = (movement[1].da*127 + transforms[0].da)/128; //velocity first derivative
-	movement[1].dx = (movement[1].dx*127 + transforms[0].dx)/128; //velocity first derivative 
+	//movement[1].dy = (movement[1].dy*127 + transforms[0].dy)/128; //velocity first derivative
+	//movement[1].da = (movement[1].da*127 + transforms[0].da)/128; //velocity first derivative
+	//movement[1].dx = (movement[1].dx*127 + transforms[0].dx)/128; //velocity first derivative 
 
 	movement[0].dy = movement[1].dy + movement[0].dy*31/32; //coordinate
 	movement[0].da = movement[1].da + movement[0].da*31/32; //coordinate

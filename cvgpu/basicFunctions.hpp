@@ -392,3 +392,142 @@ void showServiceInfoSmall(Mat& writerFrame, double Q, double nsr, bool wiener, b
 		textOrg[temp_i], fontFace, fontScale, color, 2, 8, false); ++temp_i;
 
 }
+
+//#include <opencv2/opencv.hpp>
+
+class KalmanFilterCV {
+public:
+	/**
+	 * Create a Kalman filter with the specified matrices.
+	 *   A - System dynamics matrix
+	 *   C - Output matrix
+	 *   Q - Process noise covariance
+	 *   R - Measurement noise covariance
+	 *   P - Estimate error covariance
+	 */
+	KalmanFilterCV(
+		double dt,
+		const cv::Mat& A,
+		const cv::Mat& C,
+		const cv::Mat& Q,
+		const cv::Mat& R,
+		const cv::Mat& P
+	);
+
+	/**
+	 * Create a blank estimator.
+	 */
+	KalmanFilterCV();
+
+	/**
+	 * Initialize the filter with initial states as zero.
+	 */
+	void init();
+
+	/**
+	 * Initialize the filter with a guess for initial states.
+	 */
+	void init(double t0, const cv::Mat& x0);
+
+	/**
+	 * Update the estimated state based on measured values. The
+	 * time step is assumed to remain constant.
+	 */
+	void update(const cv::Mat& y);
+
+	/**
+	 * Update the estimated state based on measured values,
+	 * using the given time step and dynamics matrix.
+	 */
+	void update(const cv::Mat& y, double dt, const cv::Mat& A);
+
+	/**
+	 * Return the current state and time.
+	 */
+	cv::Mat state() { return x_hat; };
+	double time() { return t; };
+
+private:
+	// Matrices for computation
+	cv::Mat A, C, Q, R, P, K, P0;
+
+	// System dimensions
+	int m, n;
+
+	// Initial and current time
+	double t0, t;
+
+	// Discrete time step
+	double dt;
+
+	// Is the filter initialized?
+	bool initialized;
+
+	// n-size identity
+	cv::Mat I;
+
+	// Estimated states
+	cv::Mat x_hat, x_hat_new;
+};
+
+// Implementation
+
+KalmanFilterCV::KalmanFilterCV(
+	double dt,
+	const cv::Mat& A,
+	const cv::Mat& C,
+	const cv::Mat& Q,
+	const cv::Mat& R,
+	const cv::Mat& P
+) : A(A.clone()), C(C.clone()), Q(Q.clone()), R(R.clone()), P(P.clone()),
+dt(dt), initialized(false), t0(0), t(0) {
+
+	m = C.rows;
+	n = A.rows;
+	I = cv::Mat::eye(n, n, CV_64F);
+	x_hat = cv::Mat::zeros(n, 1, CV_64F);
+	x_hat_new = cv::Mat::zeros(n, 1, CV_64F);
+	P0 = P.clone();
+}
+
+KalmanFilterCV::KalmanFilterCV() : initialized(false), t0(0), t(0), dt(0), m(0), n(0) {}
+
+void KalmanFilterCV::init() {
+	x_hat.setTo(0);
+	P = P0.clone();
+	t = t0;
+	initialized = true;
+}
+
+void KalmanFilterCV::init(double t0, const cv::Mat& x0) {
+	this->t0 = t0;
+	t = t0;
+	x0.copyTo(x_hat);
+	P = P0.clone();
+	initialized = true;
+}
+
+void KalmanFilterCV::update(const cv::Mat& y) {
+	if (!initialized) {
+		throw std::runtime_error("Filter is not initialized!");
+	}
+
+	// Prediction step
+	x_hat_new = A * x_hat;
+	P = A * P * A.t() + Q;
+
+	// Correction step
+	K = P * C.t() * (C * P * C.t() + R).inv();
+	x_hat_new += K * (y - C * x_hat_new);
+	P = (I - K * C) * P;
+
+	// Update state
+	x_hat_new.copyTo(x_hat);
+	t += dt;
+}
+
+void KalmanFilterCV::update(const cv::Mat& y, double dt, const cv::Mat& A) {
+	this->dt = dt;
+	A.copyTo(this->A);
+	update(y);
+}
