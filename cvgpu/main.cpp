@@ -270,6 +270,8 @@ int main()
 	Mat maskSearch = Mat::zeros(cv::Size(a / compression , b / compression ), CV_8U);
 	cv::rectangle(maskSearch, Rect(a * (1.0 - 0.9) / compression / 2, b * (1.0 - 0.9) / compression / 2, a * 0.9, b * 0.9 / compression ), 
 		Scalar(255), FILLED); // Прямоугольная маска
+	cv::rectangle(maskSearch, Rect(a * (1.0 - 0.4) / compression / 2, b * (1.0 - 0.4) / compression / 2, a * 0.4, b * 0.4 / compression),
+		Scalar(0), FILLED);
 	cuda::GpuMat gMaskSearch(maskSearch);
 
 	Mat maskSearchSmall = Mat::zeros(cv::Size(a / compression, b / compression), CV_8U);

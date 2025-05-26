@@ -19,7 +19,9 @@ using namespace std;
 //string videoSource = "http://192.168.0.100:4747/video"; // pixel4
 //string videoSource = "./SourceVideos/RoadFhd.mp4"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/ForestShakedVideo.avi"; // pad6-100, pixel4-101, pixel-102
-string videoSource = "./SourceVideos/ForestShakedVideo2.avi"; // pad6-100, pixel4-101, pixel-102
+//string videoSource = "./SourceVideos/ForestShakedVideo2.avi"; // pad6-100, pixel4-101, pixel-102
+//string videoSource = "./SourceVideos/MoveLeftRoad.mp4"; // pad6-100, pixel4-101, pixel-102
+string videoSource = "./SourceVideos/MoveLeftRoadShakedVideo.avi"; // pad6-100, pixel4-101, pixel-102
 //string videoSource = "./SourceVideos/Forestfhd.mp4"; // pad6-100, pixel4-101, pixel-102
 //int videoSource = 0;
 
